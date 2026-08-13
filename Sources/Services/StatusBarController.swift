@@ -123,8 +123,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func showAbout() {
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "DropPoint 1.3.1"
-        alert.informativeText = "Swift 原生版\n适用于 macOS 的拖放辅助工具。"
+        let version = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "1.4.1"
+        alert.messageText = "DropPoint \(version)"
+        alert.informativeText = "适用于 macOS 的原生临时文件架。"
         alert.addButton(withTitle: "确定")
         alert.runModal()
     }

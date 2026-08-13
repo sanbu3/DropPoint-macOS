@@ -553,7 +553,7 @@ struct SettingsView: View {
 
     private var aboutPage: some View {
         DropPointSettingsCard {
-            VStack(spacing: 20) {
+            VStack(spacing: 18) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
                     .scaledToFit()
@@ -575,10 +575,31 @@ struct SettingsView: View {
                     aboutBadge("本地文件处理", icon: "lock.shield")
                 }
 
-                Button("在 Finder 中显示应用") {
-                    NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                HStack(spacing: 14) {
+                    Button("在 Finder 中显示应用") {
+                        NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                    }
+                    .focusEffectDisabled()
+
+                    Link("查看原生源码", destination: ProjectAttribution.sourceRepositoryURL)
+                        .focusEffectDisabled()
                 }
-                .focusEffectDisabled()
+
+                HStack {
+                    Spacer()
+                    Link(destination: ProjectAttribution.nativeMaintainerURL) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(ProjectAttribution.maintainerWatermark)
+                                .font(.system(size: 10, weight: .medium))
+                            Text(ProjectAttribution.nativeMaintainerAddress)
+                                .font(.system(size: 9))
+                        }
+                        .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("原生版本维护者：\(ProjectAttribution.nativeMaintainerName)（\(ProjectAttribution.nativeMaintainerHandle)）")
+                    .accessibilityLabel("原生版本维护者 \(ProjectAttribution.nativeMaintainerName)，GitHub \(ProjectAttribution.nativeMaintainerHandle)")
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(28)
@@ -743,7 +764,7 @@ struct SettingsView: View {
     }
 
     private var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.3.1"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.4.1"
     }
 
     private func addWatchedDirectory() {
