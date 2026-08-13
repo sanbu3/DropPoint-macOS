@@ -102,7 +102,7 @@ Tests/            # 纯逻辑单元测试
 
 ## 作者与致谢
 
-本原生 macOS 版本由 **王汪旺**（[@sanbu3](https://github.com/sanbu3)）维护，源码位于 [sanbu3/DropPoint-macOS](https://github.com/sanbu3/DropPoint-macOS)。维护者信息仅在设置的“关于”页面以轻量署名呈现。
+本原生 macOS 版本由 **王汪旺**（[@sanbu3](https://github.com/sanbu3)）维护，源码位于 [sanbu3/DropPoint-macOS](https://github.com/sanbu3/DropPoint-macOS)。
 
 核心产品灵感来自 Sudev Suresh Sreedevi（[@GameGodS3](https://github.com/GameGodS3)）创建的 [DropPoint](https://github.com/GameGodS3/DropPoint)，谨此致谢。本仓库是使用 SwiftUI 与 AppKit 完成的独立原生实现。
 
