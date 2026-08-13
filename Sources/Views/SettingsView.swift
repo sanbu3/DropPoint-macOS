@@ -71,6 +71,7 @@ struct SettingsView: View {
                 page.padding(.top, 42)
             }
         }
+        .background(DropPointSettingsWindowConfigurator())
         .overlay(alignment: .topTrailing) {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
@@ -575,7 +576,7 @@ struct SettingsView: View {
                     aboutBadge("本地文件处理", icon: "lock.shield")
                 }
 
-                HStack(spacing: 14) {
+                VStack(spacing: 10) {
                     Button("在 Finder 中显示应用") {
                         NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
                     }
@@ -585,21 +586,19 @@ struct SettingsView: View {
                         .focusEffectDisabled()
                 }
 
-                HStack {
-                    Spacer()
-                    Link(destination: ProjectAttribution.nativeMaintainerURL) {
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(ProjectAttribution.maintainerWatermark)
-                                .font(.system(size: 10, weight: .medium))
-                            Text(ProjectAttribution.nativeMaintainerAddress)
-                                .font(.system(size: 9))
-                        }
-                        .foregroundStyle(.tertiary)
+                Link(destination: ProjectAttribution.nativeMaintainerURL) {
+                    VStack(alignment: .center, spacing: 3) {
+                        Text(ProjectAttribution.maintainerWatermark)
+                            .font(.system(size: 10, weight: .medium))
+                        Text(ProjectAttribution.nativeMaintainerAddress)
+                            .font(.system(size: 9))
                     }
-                    .buttonStyle(.plain)
-                    .help("原生版本维护者：\(ProjectAttribution.nativeMaintainerName)（\(ProjectAttribution.nativeMaintainerHandle)）")
-                    .accessibilityLabel("原生版本维护者 \(ProjectAttribution.nativeMaintainerName)，GitHub \(ProjectAttribution.nativeMaintainerHandle)")
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
                 }
+                .buttonStyle(.plain)
+                .help("原生版本维护者：\(ProjectAttribution.nativeMaintainerName)（\(ProjectAttribution.nativeMaintainerHandle)）")
+                .accessibilityLabel("原生版本维护者 \(ProjectAttribution.nativeMaintainerName)，GitHub \(ProjectAttribution.nativeMaintainerHandle)")
             }
             .frame(maxWidth: .infinity)
             .padding(28)
