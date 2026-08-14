@@ -115,7 +115,9 @@ final class ShelfWindowManager {
     private var quickCleanupWorkItem: DispatchWorkItem?
     private var emptyAutoCloseTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var idleSnapTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
+    private var postDropSnapTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var transientIDs = Set<ObjectIdentifier>()
+    private var shakeGeneratedIDs = Set<ObjectIdentifier>()
     private var closedHistory: [[URL]] = []
 
     init(settings: AppSettings) {
@@ -132,7 +134,33 @@ final class ShelfWindowManager {
         guard ShelfActivationPolicy.allowsShakeSpawn(hasOpenShelf: hasShelves) else {
             return nil
         }
-        return spawn(forcePosition: .cursor, transient: true)
+        let controller = spawn(forcePosition: .cursor, transient: true)
+        shakeGeneratedIDs.insert(ObjectIdentifier(controller))
+        return controller
+    }
+
+    func finishExternalFileDrag() {
+        let endedDragIDs = shakeGeneratedIDs
+        guard !endedDragIDs.isEmpty else { return }
+        let dropLocation = NSEvent.mouseLocation
+
+        for controller in shelves {
+            let identifier = ObjectIdentifier(controller)
+            guard endedDragIDs.contains(identifier) else { continue }
+
+            if controller.window?.frame.contains(dropLocation) == true {
+                // Browser image drops may clear isDropTargeted and finish their
+                // asynchronous pasteboard delivery after the global mouse-up.
+                // Releasing inside this shelf is sufficient proof of intent.
+                shakeGeneratedIDs.remove(identifier)
+                continue
+            }
+
+            shakeGeneratedIDs.remove(identifier)
+            if controller.store.items.isEmpty {
+                controller.closeAnimated()
+            }
+        }
     }
 
     @discardableResult
@@ -222,6 +250,30 @@ final class ShelfWindowManager {
 
     private func cancelIdleSnap(_ controller: ShelfWindowController) {
         idleSnapTimers.removeValue(forKey: ObjectIdentifier(controller))?.cancel()
+    }
+
+    private func schedulePostDropSnap(_ controller: ShelfWindowController) {
+        cancelPostDropSnap(controller)
+        guard settings.autoSnapAfterDrop else { return }
+
+        let identifier = ObjectIdentifier(controller)
+        let workItem = DispatchWorkItem { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            self.postDropSnapTimers.removeValue(forKey: identifier)
+            guard self.settings.autoSnapAfterDrop,
+                  self.shelves.contains(where: { $0 === controller }),
+                  controller.window?.isVisible == true else { return }
+            self.snapAfterDrop(controller)
+        }
+        postDropSnapTimers[identifier] = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + max(0, settings.autoSnapAfterDropDelay),
+            execute: workItem
+        )
+    }
+
+    private func cancelPostDropSnap(_ controller: ShelfWindowController) {
+        postDropSnapTimers.removeValue(forKey: ObjectIdentifier(controller))?.cancel()
     }
 
     func toggleShelves() {
@@ -422,15 +474,21 @@ final class ShelfWindowManager {
             guard let self, let controller else { return }
             self.quickLookPreviewController.show(url, for: controller)
         }
+        store.onDropAccepted = { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            let identifier = ObjectIdentifier(controller)
+            self.cancelEmptyAutoClose(controller)
+            self.transientIDs.remove(identifier)
+            self.shakeGeneratedIDs.remove(identifier)
+        }
         store.onDropSettled = { [weak self, weak controller] in
             guard let self, let controller else { return }
             self.cancelEmptyAutoClose(controller)
             self.scheduleIdleSnap(controller)
-            self.transientIDs.remove(ObjectIdentifier(controller))
-            DispatchQueue.main.async { [weak self, weak controller] in
-                guard let self, let controller else { return }
-                self.snapAfterDrop(controller)
-            }
+            let identifier = ObjectIdentifier(controller)
+            self.transientIDs.remove(identifier)
+            self.shakeGeneratedIDs.remove(identifier)
+            self.schedulePostDropSnap(controller)
         }
         store.onEmptied = { [weak self, weak controller] in
             guard let self, let controller else { return }
@@ -459,6 +517,9 @@ final class ShelfWindowManager {
             self?.quickLookPreviewController.close(ifOwnedBy: controller)
         }
         controller.onSnapRequested = { [weak self] controller in self?.snap(controller) }
+        controller.onImmediateSnapRequested = { [weak self] controller in
+            self?.snapAfterDrop(controller)
+        }
         controller.onInteraction = { [weak self] controller in self?.scheduleIdleSnap(controller) }
         return controller
     }
@@ -492,7 +553,10 @@ final class ShelfWindowManager {
         }
         cancelEmptyAutoClose(controller)
         cancelIdleSnap(controller)
-        transientIDs.remove(ObjectIdentifier(controller))
+        cancelPostDropSnap(controller)
+        let identifier = ObjectIdentifier(controller)
+        transientIDs.remove(identifier)
+        shakeGeneratedIDs.remove(identifier)
         shelves.removeAll { $0 === controller }
         if pendingShelf === controller { pendingShelf = nil }
         if presentedQuickShelf === controller { presentedQuickShelf = nil }

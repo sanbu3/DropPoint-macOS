@@ -35,6 +35,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     var onWillDismiss: ((ShelfWindowController) -> Void)?
     var isPreviewActive: (() -> Bool)?
     var onSnapRequested: ((ShelfWindowController) -> Void)?
+    var onImmediateSnapRequested: ((ShelfWindowController) -> Void)?
     var onInteraction: ((ShelfWindowController) -> Void)?
 
     private var compactOrigin: NSPoint?
@@ -89,6 +90,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         }
         panel.onPrecisionScroll = { [weak self] event in
             self?.handlePrecisionScroll(event) ?? false
+        }
+        hostingView.onTwoFingerTap = { [weak self] in
+            guard let self else { return }
+            self.onInteraction?(self)
+            self.onImmediateSnapRequested?(self)
         }
         closeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self,

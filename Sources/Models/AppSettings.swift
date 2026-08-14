@@ -218,6 +218,7 @@ final class AppSettings {
     var focusShelfOnShow: Bool { didSet { persistPropertyChange() } }
     var emptyShelfTimeout: Double { didSet { persistPropertyChange() } }
     var autoSnapAfterDrop: Bool { didSet { persistPropertyChange() } }
+    var autoSnapAfterDropDelay: Double { didSet { persistPropertyChange() } }
     var snapCorner: SnapCorner { didSet { persistPropertyChange() } }
     var showMenuBarIcon: Bool { didSet { persistPropertyChange() } }
     var showInDock: Bool { didSet { persistPropertyChange() } }
@@ -257,7 +258,11 @@ final class AppSettings {
         autoCollapseExpanded = defaults.object(forKey: Keys.autoCollapseExpanded) as? Bool ?? true
         focusShelfOnShow = defaults.object(forKey: Keys.focusShelfOnShow) as? Bool ?? false
         emptyShelfTimeout = defaults.object(forKey: Keys.emptyShelfTimeout) as? Double ?? 6
-        autoSnapAfterDrop = defaults.object(forKey: Keys.autoSnapAfterDrop) as? Bool ?? true
+        autoSnapAfterDrop = defaults.object(forKey: Keys.autoSnapAfterDrop) as? Bool ?? false
+        autoSnapAfterDropDelay = min(
+            max(defaults.object(forKey: Keys.autoSnapAfterDropDelay) as? Double ?? 0, 0),
+            30
+        )
         snapCorner = SnapCorner(
             rawValue: defaults.string(forKey: Keys.snapCorner) ?? "topRight"
         ) ?? .topRight
@@ -307,6 +312,7 @@ final class AppSettings {
         focusShelfOnShow = draft.focusShelfOnShow
         emptyShelfTimeout = draft.emptyShelfTimeout
         autoSnapAfterDrop = draft.autoSnapAfterDrop
+        autoSnapAfterDropDelay = draft.autoSnapAfterDropDelay
         snapCorner = draft.snapCorner
         showMenuBarIcon = draft.showMenuBarIcon
         showInDock = draft.showInDock
@@ -342,6 +348,7 @@ final class AppSettings {
         defaults.set(focusShelfOnShow, forKey: Keys.focusShelfOnShow)
         defaults.set(emptyShelfTimeout, forKey: Keys.emptyShelfTimeout)
         defaults.set(autoSnapAfterDrop, forKey: Keys.autoSnapAfterDrop)
+        defaults.set(autoSnapAfterDropDelay, forKey: Keys.autoSnapAfterDropDelay)
         defaults.set(snapCorner.rawValue, forKey: Keys.snapCorner)
         defaults.set(showMenuBarIcon, forKey: Keys.showMenuBarIcon)
         defaults.set(showInDock, forKey: Keys.showInDock)
@@ -370,7 +377,10 @@ final class AppSettings {
         static let autoCollapseExpanded = "autoCollapseExpanded"
         static let focusShelfOnShow = "focusShelfOnShow"
         static let emptyShelfTimeout = "emptyShelfTimeout"
-        static let autoSnapAfterDrop = "autoSnapAfterDrop"
+        // Earlier builds persisted an inaccessible `true` default under
+        // `autoSnapAfterDrop`. A new key restores user choice on upgrade.
+        static let autoSnapAfterDrop = "autoSnapAfterDropEnabled"
+        static let autoSnapAfterDropDelay = "autoSnapAfterDropDelay"
         static let snapCorner = "snapCorner"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let showInDock = "showInDock"
@@ -400,6 +410,7 @@ struct SettingsDraft: Equatable {
     var focusShelfOnShow: Bool
     var emptyShelfTimeout: Double
     var autoSnapAfterDrop: Bool
+    var autoSnapAfterDropDelay: Double
     var snapCorner: SnapCorner
     var showMenuBarIcon: Bool
     var showInDock: Bool
@@ -428,6 +439,7 @@ struct SettingsDraft: Equatable {
         focusShelfOnShow = settings.focusShelfOnShow
         emptyShelfTimeout = settings.emptyShelfTimeout
         autoSnapAfterDrop = settings.autoSnapAfterDrop
+        autoSnapAfterDropDelay = settings.autoSnapAfterDropDelay
         snapCorner = settings.snapCorner
         showMenuBarIcon = settings.showMenuBarIcon
         showInDock = settings.showInDock

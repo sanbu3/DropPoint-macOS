@@ -32,6 +32,7 @@ final class ShelfStore {
     @ObservationIgnored var onQuickCommit: (() -> Void)?
     @ObservationIgnored var onInternalDragStateChanged: ((Bool) -> Void)?
     @ObservationIgnored var onPreviewRequested: ((URL) -> Void)?
+    @ObservationIgnored var onDropAccepted: (() -> Void)?
     @ObservationIgnored var onDropSettled: (() -> Void)?
     @ObservationIgnored var onEmptied: (() -> Void)?
     @ObservationIgnored var onItemCountChanged: ((Int) -> Void)?

@@ -143,6 +143,7 @@ final class ExternalFileDragMonitor {
 
     private func sampleIdlePasteboard() {
         guard NSEvent.pressedMouseButtons & 1 == 0 else { return }
+        if activeFileDrag { finishDrag() }
         idleChangeCount = dragPasteboard.changeCount
     }
 

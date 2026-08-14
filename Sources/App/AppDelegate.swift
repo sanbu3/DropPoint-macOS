@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dragMonitor.onShake = { [weak manager] in
             manager?.spawnFromShake()
         }
+        dragMonitor.onFileDragEnd = { [weak manager] in
+            manager?.finishExternalFileDrag()
+        }
         dragMonitor.start()
 
         directoryWatcher = DirectoryWatcher()
@@ -70,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         directoryWatcher.fileCategory = settings.watchedFileCategory
 
         screenshotWatcher = DirectoryWatcher()
+        screenshotWatcher.ignoresReappearingFiles = true
         screenshotWatcher.fileFilter = ScreenshotFileDetector.includes
         screenshotWatcher.onNewFiles = { [weak manager] urls in
             manager?.spawn(urls: urls, source: .screenshot)

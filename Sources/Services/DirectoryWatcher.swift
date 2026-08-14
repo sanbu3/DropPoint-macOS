@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 final class DirectoryWatcher {
     var onNewFiles: (([URL]) -> Void)?
     var fileFilter: ((URL) -> Bool)?
+    var ignoresReappearingFiles = false
     var watchPaths: [String] = [] {
         didSet {
             guard isRunning, watchPaths != oldValue else { return }
@@ -18,6 +19,8 @@ final class DirectoryWatcher {
     private var sources: [DispatchSourceFileSystemObject] = []
     private var pendingFiles: [String: [URL]] = [:]
     private var knownFiles: [String: Set<String>] = [:]
+    private var knownFileIdentities: [String: [String: FileIdentity]] = [:]
+    private var disappearedFileIdentities: [FileIdentity: Date] = [:]
     private var flushWorkItem: DispatchWorkItem?
     private var resumeObservationWorkItem: DispatchWorkItem?
     private var isIgnoringChanges = false
@@ -68,14 +71,17 @@ final class DirectoryWatcher {
         flushWorkItem = nil
         pendingFiles.removeAll()
         knownFiles.removeAll()
+        knownFileIdentities.removeAll()
+        disappearedFileIdentities.removeAll()
     }
 
     private func restartSources() {
         stopSources()
         for path in watchPaths {
             let url = URL(fileURLWithPath: path)
-            knownFiles[path] = directoryContents(at: url)
-                .map { Set($0.map(\.standardizedFileURL.path)) } ?? []
+            let files = directoryContents(at: url) ?? []
+            knownFiles[path] = Set(files.map(\.standardizedFileURL.path))
+            knownFileIdentities[path] = fileIdentities(for: files)
             let descriptor = open(url.path, O_EVTONLY)
             guard descriptor >= 0 else { continue }
             let source = DispatchSource.makeFileSystemObjectSource(
@@ -99,10 +105,28 @@ final class DirectoryWatcher {
         guard let files = directoryContents(at: url) else { return }
         let current = Set(files.map { $0.standardizedFileURL.path })
         let previous = knownFiles[path] ?? []
+        let currentIdentities = fileIdentities(for: files)
+        let previousIdentities = knownFileIdentities[path] ?? [:]
+
+        if ignoresReappearingFiles {
+            for (filePath, identity) in previousIdentities where !current.contains(filePath) {
+                disappearedFileIdentities[identity] = Date()
+            }
+            pruneDisappearedFileIdentities()
+        }
+
         knownFiles[path] = current
+        knownFileIdentities[path] = currentIdentities
         guard !isIgnoringChanges else { return }
         let newFiles = files.filter {
-            !previous.contains($0.standardizedFileURL.path)
+            let filePath = $0.standardizedFileURL.path
+            guard !previous.contains(filePath) else { return false }
+            guard ignoresReappearingFiles,
+                  let identity = currentIdentities[filePath],
+                  disappearedFileIdentities.removeValue(forKey: identity) != nil else {
+                return true
+            }
+            return false
         }
         guard !newFiles.isEmpty else { return }
 
@@ -139,17 +163,50 @@ final class DirectoryWatcher {
     private func refreshKnownFiles() {
         for path in watchPaths {
             let url = URL(fileURLWithPath: path)
-            knownFiles[path] = directoryContents(at: url)
-                .map { Set($0.map(\.standardizedFileURL.path)) } ?? []
+            let files = directoryContents(at: url) ?? []
+            knownFiles[path] = Set(files.map(\.standardizedFileURL.path))
+            knownFileIdentities[path] = fileIdentities(for: files)
         }
+    }
+
+    private func fileIdentities(for files: [URL]) -> [String: FileIdentity] {
+        Dictionary(uniqueKeysWithValues: files.compactMap { url in
+            guard let identity = FileIdentity(url: url) else { return nil }
+            return (url.standardizedFileURL.path, identity)
+        })
+    }
+
+    private func pruneDisappearedFileIdentities() {
+        let cutoff = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+        disappearedFileIdentities = disappearedFileIdentities.filter { $0.value >= cutoff }
+    }
+}
+
+private struct FileIdentity: Hashable {
+    let volumeNumber: UInt64
+    let fileNumber: UInt64
+
+    init?(url: URL) {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let volume = attributes[.systemNumber] as? NSNumber,
+              let file = attributes[.systemFileNumber] as? NSNumber else { return nil }
+        volumeNumber = volume.uint64Value
+        fileNumber = file.uint64Value
     }
 }
 
 enum ScreenshotFileDetector {
     static func includes(_ url: URL) -> Bool {
-        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentTypeKey]),
+        let keys: Set<URLResourceKey> = [
+            .isRegularFileKey,
+            .contentTypeKey,
+            .creationDateKey,
+            .contentModificationDateKey,
+        ]
+        guard let values = try? url.resourceValues(forKeys: keys),
               values.isRegularFile == true,
-              values.contentType?.conforms(to: .image) == true else { return false }
+              values.contentType?.conforms(to: .image) == true,
+              isRecentlyCreatedOrModified(values) else { return false }
 
         if let item = MDItemCreate(nil, url.path as CFString),
            let value = MDItemCopyAttribute(item, "kMDItemIsScreenCapture" as CFString) as? NSNumber,
@@ -168,5 +225,12 @@ enum ScreenshotFileDetector {
             "cleanshot", "shottr", "xnip", "ishot", "snipaste"
         ]
         return markers.contains { name.contains($0) }
+    }
+
+    private static func isRecentlyCreatedOrModified(_ values: URLResourceValues) -> Bool {
+        let newestDate = [values.creationDate, values.contentModificationDate]
+            .compactMap { $0 }
+            .max() ?? .distantPast
+        return newestDate >= Date().addingTimeInterval(-60)
     }
 }

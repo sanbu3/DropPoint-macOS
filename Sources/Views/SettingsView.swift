@@ -349,9 +349,39 @@ struct SettingsView: View {
                     Divider().padding(.leading, 54)
                     toggleSetting("窗口显示时获取焦点", detail: "文件架默认不抢焦点；启用后将成为活动窗口。", icon: "scope", value: $draft.focusShelfOnShow)
                     Divider().padding(.leading, 54)
-                    settingRow(icon: "rectangle.topthird.inset.filled", title: "放置后贴边位置", detail: "文件架收到文件后会立即停靠到所选屏幕角落。") {
+                    toggleSetting(
+                        "放置后自动贴边",
+                        detail: draft.autoSnapAfterDrop
+                            ? "文件架收到文件后，按下方设置移动到屏幕角落。"
+                            : "默认关闭；放置文件不会改变窗口位置。",
+                        icon: "rectangle.portrait.and.arrow.forward",
+                        value: $draft.autoSnapAfterDrop
+                    )
+                    Divider().padding(.leading, 54)
+                    settingRow(
+                        icon: "timer",
+                        title: "放置后贴边延迟",
+                        detail: draft.autoSnapAfterDropDelay == 0
+                            ? "放置完成后立即贴边。"
+                            : "放置完成后等待 \(Int(draft.autoSnapAfterDropDelay)) 秒再贴边。"
+                    ) {
+                        HStack(spacing: 8) {
+                            Slider(value: $draft.autoSnapAfterDropDelay, in: 0...30, step: 1)
+                                .frame(width: 132)
+                                .focusEffectDisabled()
+                            Text(autoSnapDelayTitle)
+                                .font(.system(size: 11, weight: .medium))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                                .frame(width: 48, alignment: .trailing)
+                        }
+                    }
+                    .disabled(!draft.autoSnapAfterDrop)
+                    Divider().padding(.leading, 54)
+                    settingRow(icon: "rectangle.topthird.inset.filled", title: "放置后贴边位置", detail: "选择自动贴边时移动到左上角或右上角。") {
                         optionPicker($draft.snapCorner)
                     }
+                    .disabled(!draft.autoSnapAfterDrop)
                     Divider().padding(.leading, 54)
                     settingRow(
                         icon: "moon.zzz",
@@ -710,6 +740,12 @@ struct SettingsView: View {
             get: { draft.showMenuBarIcon },
             set: { draft.showMenuBarIcon = $0 || !draft.showInDock }
         )
+    }
+
+    private var autoSnapDelayTitle: String {
+        draft.autoSnapAfterDropDelay == 0
+            ? "立即"
+            : "\(Int(draft.autoSnapAfterDropDelay)) 秒"
     }
 
     private var dockBinding: Binding<Bool> {
