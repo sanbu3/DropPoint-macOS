@@ -5,11 +5,14 @@ import SwiftUI
 final class ShelfDropHostingView: NSHostingView<AnyView> {
     weak var store: ShelfStore?
     var onTwoFingerTap: (() -> Void)?
+    var onHoverChanged: ((Bool) -> Void)?
 
+    private var shelfTrackingArea: NSTrackingArea?
     private var touchSequenceStartedAt: TimeInterval?
     private var initialTouchPositions: [ObjectIdentifier: NSPoint] = [:]
     private var maximumTouchCount = 0
     private var touchSequenceMoved = false
+    private var windowDragTracker = ShelfWindowDragTracker()
 
     init(store: ShelfStore) {
         self.store = store
@@ -19,7 +22,7 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             )
         )
-        acceptsTouchEvents = true
+        allowedTouchTypes = [.indirect]
     }
 
     required init(rootView: AnyView) {
@@ -31,20 +34,82 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
 
     override var mouseDownCanMoveWindow: Bool { true }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         registerForDraggedTypes(FileDropImporter.readableTypes)
     }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let shelfTrackingArea { removeTrackingArea(shelfTrackingArea) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        shelfTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        onHoverChanged?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        onHoverChanged?(false)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let hasFiles = store?.items.isEmpty == false
+        switch ShelfPointerInteractionPolicy.backgroundMouseDown(
+            clickCount: event.clickCount,
+            hasFiles: hasFiles
+        ) {
+        case .moveShelf:
+            guard let window else { return }
+            windowDragTracker.begin(
+                mouseLocationOnScreen: window.convertPoint(toScreen: event.locationInWindow),
+                windowOrigin: window.frame.origin
+            )
+        case .clearShelf:
+            store?.clear()
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let window,
+              let origin = windowDragTracker.windowOrigin(
+                for: window.convertPoint(toScreen: event.locationInWindow)
+              ) else { return }
+        window.setFrameOrigin(origin)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        windowDragTracker.end()
+        super.mouseUp(with: event)
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let store else {
+            super.rightMouseDown(with: event)
+            return
+        }
+        NSMenu.popUpContextMenu(ShelfContextMenuFactory.make(for: store), with: event, for: self)
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard store?.isDraggingOut != true else { return [] }
-        activateShelfWindow()
+        if isReturningDrag(sender) { return .copy }
         store?.updateDropTargeted(hasFileURLs(sender))
         return store?.isDropTargeted == true ? .copy : []
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard store?.isDraggingOut != true else { return [] }
+        if isReturningDrag(sender) { return .copy }
         let hasFiles = hasFileURLs(sender)
         store?.updateDropTargeted(hasFiles)
         return hasFiles ? .copy : []
@@ -60,8 +125,16 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let accepted = FileDropImporter.importFiles(from: sender.draggingPasteboard) { [weak store] urls in
-            store?.add(urls: urls)
+        if isReturningDrag(sender) {
+            store?.acceptInternalDragReturn()
+            store?.updateDropTargeted(false)
+            return true
+        }
+        let accepted = FileDropImporter.importFiles(from: sender.draggingPasteboard) { [weak store] event in
+            switch event {
+            case .imported(let urls): store?.add(urls: urls)
+            case .failed(let message): store?.onDropFailed?(message)
+            }
         }
         if accepted { store?.onDropAccepted?() }
         store?.updateDropTargeted(false)
@@ -102,14 +175,14 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
         if recognized { onTwoFingerTap?() }
     }
 
-    private func activateShelfWindow() {
-        guard let window else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-    }
-
     private func hasFileURLs(_ sender: NSDraggingInfo) -> Bool {
         FileDropImporter.canImport(from: sender.draggingPasteboard)
+    }
+
+    private func isReturningDrag(_ sender: NSDraggingInfo) -> Bool {
+        guard let source = sender.draggingSource as? DragPassThroughNSView,
+              let store else { return false }
+        return source.dropStore === store
     }
 
     private func updateTouchSequence(with event: NSEvent) {
@@ -146,4 +219,5 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
         let point = contentView.convert(sender.draggingLocation, from: nil)
         return contentView.bounds.contains(point)
     }
+
 }

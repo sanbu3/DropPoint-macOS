@@ -24,7 +24,8 @@ struct CompactFileShelfView: View {
 
             itemChip
                 .position(x: 99, y: 173)
-                .opacity(1 - min(max((pullProgress - 0.82) / 0.18, 0), 1))
+                .opacity(store.isOptionClearActive ? 0 : 1 - min(max((pullProgress - 0.82) / 0.18, 0), 1))
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: store.isOptionClearActive)
         }
         .allowsHitTesting(!store.isDismissGestureActive && !store.isPullClearing)
         .animation(
@@ -80,7 +81,7 @@ struct CompactFileShelfView: View {
             .shadow(color: .white.opacity(0.22), radius: 0, y: 1)
         }
         .buttonStyle(.plain)
-        .focusable(false)
+        .shelfFocusRing(Capsule(), color: palette.accent)
         .disabled(store.items.count <= 1)
         .help(store.summary)
     }
@@ -123,15 +124,24 @@ private struct MarqueeFileName: View {
         let travel = max(0, textWidth - width)
         guard travel > 2, !reduceMotion else { return }
         animationTask = Task { @MainActor in
-            do {
-                try await Task.sleep(for: .milliseconds(850))
-            } catch { return }
-            guard !Task.isCancelled else { return }
-            withAnimation(
-                .linear(duration: max(2.4, Double(travel / 24)))
-                .repeatForever(autoreverses: true)
-            ) {
-                offset = -travel
+            let duration = max(2.4, Double(travel / 24))
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .milliseconds(850))
+                } catch { return }
+                guard !Task.isCancelled else { return }
+                withAnimation(.linear(duration: duration)) {
+                    offset = -travel
+                }
+                do {
+                    try await Task.sleep(for: .seconds(duration))
+                } catch { return }
+                guard !Task.isCancelled else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    offset = 0
+                }
             }
         }
     }

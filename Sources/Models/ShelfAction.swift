@@ -7,6 +7,7 @@ enum ShelfAction: String, SettingOption {
     case open
     case reveal
     case copyPaths
+    case compressImages
     case createPDF
     case archive
     case copyTo
@@ -20,6 +21,7 @@ enum ShelfAction: String, SettingOption {
         .open,
         .reveal,
         .copyPaths,
+        .compressImages,
         .createPDF,
         .archive,
     ]
@@ -34,6 +36,7 @@ enum ShelfAction: String, SettingOption {
         case .open: "打开文件"
         case .reveal: "在 Finder 中显示"
         case .copyPaths: "复制路径"
+        case .compressImages: "压缩图片大小…"
         case .createPDF: "创建 PDF"
         case .archive: "压缩为 ZIP"
         case .copyTo: "将文件复制到…"
@@ -50,6 +53,7 @@ enum ShelfAction: String, SettingOption {
         case .open: "arrow.up.forward.app"
         case .reveal: "folder"
         case .copyPaths: "doc.on.doc"
+        case .compressImages: "arrow.down.right.and.arrow.up.left"
         case .createPDF: "document.badge.plus"
         case .archive: "archivebox"
         case .copyTo: "doc.on.doc.fill"
@@ -64,6 +68,7 @@ enum ShelfAction: String, SettingOption {
         case .open: "使用默认应用打开所选内容"
         case .reveal: "在 Finder 中定位所选内容"
         case .copyPaths: "把 POSIX 路径复制到剪贴板"
+        case .compressImages: "按目标文件大小输出 JPEG，不覆盖原图"
         case .createPDF: "将图片合并成一份 PDF"
         case .archive: "把所选内容压缩成 ZIP 文件"
         case .copyTo: "保留原文件并复制到选定目录"

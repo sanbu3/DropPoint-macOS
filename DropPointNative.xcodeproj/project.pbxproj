@@ -10,17 +10,18 @@
 		04E9EBA53973E1D0BC911BAB /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A4A57EE58703C0EF70B7AA /* ClipboardService.swift */; };
 		06DA6A4EF0CADFBDE8BFAA32 /* DropPointLogo.svg in Resources */ = {isa = PBXBuildFile; fileRef = C2FEBA3176F83A868761DCFC /* DropPointLogo.svg */; };
 		2231910E64D0842098BDE59C /* AnimatedSVGView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29DECA39C7799BD75D56251B /* AnimatedSVGView.swift */; };
+		242FF4C03E5A443E28833862 /* InputMonitoringPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB01643E4205F7818E44590D /* InputMonitoringPermissionService.swift */; };
 		255B52FD63A42E32810A7724 /* ShelfDropHostingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2404CF97215AEC8D681563B9 /* ShelfDropHostingView.swift */; };
 		267599EB0F05CCD940B1A9BD /* ExpandedShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C04420189B9E761585C681 /* ExpandedShelfView.swift */; };
 		27217171884A3DEE8439B72A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F0C0338FC41775B78A51506 /* SettingsView.swift */; };
 		2FAD835D667303C8CEEB53D1 /* ProjectAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAF80CD078413828F62D5D0 /* ProjectAttribution.swift */; };
-		36BE829994399FE577D0ED00 /* FileDragSourceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0431590044435E92E6E0160E /* FileDragSourceView.swift */; };
 		4A34E9983C3A1B053BEB9082 /* SettingsGlassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70CEC862665A410BACE399E /* SettingsGlassComponents.swift */; };
 		4CF8D702D9DF36C68B399EF4 /* Empty Box.svg in Resources */ = {isa = PBXBuildFile; fileRef = C368EF9A81E41BA63A5F4FDD /* Empty Box.svg */; };
 		58CCE6109ACA4EE3F99A359E /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4430FA0D50EFFCAED4C1CD8 /* StatusBarController.swift */; };
 		592644BCFC3DC1171D9A2A22 /* GlobalHotKeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D210AB8CC87D9C277E22DF73 /* GlobalHotKeyMonitor.swift */; };
 		65A9ECEBD9D659DB76DA86A3 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BBB0C414D34B04D8BC23D66 /* AppDelegate.swift */; };
 		663345649DA2B141E83FBC1F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 29115A3051D5B2B4E5905DF1 /* Assets.xcassets */; };
+		6AC0AF7D2F1B80F3E0132A4B /* ImageCompressionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19549E5672298F1AF28F0E66 /* ImageCompressionService.swift */; };
 		7ACAAF8E38F6BE1AF3BA6D57 /* ShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5592D69D2AF2F44E09E094FB /* ShelfView.swift */; };
 		842B6FE264E2839B6C18DF4D /* ShelfPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DFF537C897D5495B17AE0E /* ShelfPalette.swift */; };
 		8A2ECEE1B29A77148A0B2570 /* ShelfItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60444CC808E3CC2338FE8C1 /* ShelfItem.swift */; };
@@ -31,6 +32,7 @@
 		B1B7335DF5DFECA45789D7A4 /* ExternalFileDragMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E19AE7AAB0330B4F68C5EA /* ExternalFileDragMonitor.swift */; };
 		BDC1C452D7ABF32F69874617 /* ShelfGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEC6FD5A62755C0940C6677 /* ShelfGeometryTests.swift */; };
 		C5B43D9F33FB4B646279C085 /* ShelfActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5878A133EF3ADA9F52C44FBB /* ShelfActionService.swift */; };
+		CB6C29B72C794C35E91985D5 /* ShelfFocusRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7C759DEB962642660176DF /* ShelfFocusRing.swift */; };
 		D3E23F0C734B05404C84993D /* Cat_in_Box.svg in Resources */ = {isa = PBXBuildFile; fileRef = 7B49C3435F21B7E7EA4B0730 /* Cat_in_Box.svg */; };
 		E10D2DC8B0A4CCFFF10740DD /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8BE7B91D23778BA7DBF3109 /* LaunchAtLoginService.swift */; };
 		E4586D8024303F58FD7B6038 /* CompactFileShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11676C7F1E7580EADC890261 /* CompactFileShelfView.swift */; };
@@ -54,10 +56,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0431590044435E92E6E0160E /* FileDragSourceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDragSourceView.swift; sourceTree = "<group>"; };
 		0BFAB47FB3B5F5B211B5F1AD /* DropPointApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropPointApp.swift; sourceTree = "<group>"; };
 		11676C7F1E7580EADC890261 /* CompactFileShelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactFileShelfView.swift; sourceTree = "<group>"; };
 		12DFF537C897D5495B17AE0E /* ShelfPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfPalette.swift; sourceTree = "<group>"; };
+		19549E5672298F1AF28F0E66 /* ImageCompressionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCompressionService.swift; sourceTree = "<group>"; };
 		1B2FDBF971977B77DE36AD97 /* DropPointNativeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DropPointNativeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1EEC6FD5A62755C0940C6677 /* ShelfGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfGeometryTests.swift; sourceTree = "<group>"; };
 		22BF155EBBB86457BB19A8D4 /* ShelfStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfStore.swift; sourceTree = "<group>"; };
@@ -70,6 +72,7 @@
 		5878A133EF3ADA9F52C44FBB /* ShelfActionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfActionService.swift; sourceTree = "<group>"; };
 		58C04420189B9E761585C681 /* ExpandedShelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedShelfView.swift; sourceTree = "<group>"; };
 		681CA1D8258C085BF9A01AFF /* FileDropImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDropImporter.swift; sourceTree = "<group>"; };
+		6C7C759DEB962642660176DF /* ShelfFocusRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfFocusRing.swift; sourceTree = "<group>"; };
 		75149F843906BFBD419D0334 /* DropPointNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DropPointNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7B49C3435F21B7E7EA4B0730 /* Cat_in_Box.svg */ = {isa = PBXFileReference; path = Cat_in_Box.svg; sourceTree = "<group>"; };
 		7CA0A93955E08FCAD91FCDFB /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -78,6 +81,7 @@
 		8F0C0338FC41775B78A51506 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9AAF80CD078413828F62D5D0 /* ProjectAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAttribution.swift; sourceTree = "<group>"; };
 		A70CEC862665A410BACE399E /* SettingsGlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGlassComponents.swift; sourceTree = "<group>"; };
+		AB01643E4205F7818E44590D /* InputMonitoringPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputMonitoringPermissionService.swift; sourceTree = "<group>"; };
 		C2FEBA3176F83A868761DCFC /* DropPointLogo.svg */ = {isa = PBXFileReference; path = DropPointLogo.svg; sourceTree = "<group>"; };
 		C368EF9A81E41BA63A5F4FDD /* Empty Box.svg */ = {isa = PBXFileReference; path = "Empty Box.svg"; sourceTree = "<group>"; };
 		CCD2A448DA69D1A72B4DF1FA /* ShelfWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfWindowManager.swift; sourceTree = "<group>"; };
@@ -113,6 +117,7 @@
 				58C04420189B9E761585C681 /* ExpandedShelfView.swift */,
 				A70CEC862665A410BACE399E /* SettingsGlassComponents.swift */,
 				8F0C0338FC41775B78A51506 /* SettingsView.swift */,
+				6C7C759DEB962642660176DF /* ShelfFocusRing.swift */,
 				5592D69D2AF2F44E09E094FB /* ShelfView.swift */,
 			);
 			path = Views;
@@ -155,6 +160,8 @@
 				51E19AE7AAB0330B4F68C5EA /* ExternalFileDragMonitor.swift */,
 				681CA1D8258C085BF9A01AFF /* FileDropImporter.swift */,
 				D210AB8CC87D9C277E22DF73 /* GlobalHotKeyMonitor.swift */,
+				19549E5672298F1AF28F0E66 /* ImageCompressionService.swift */,
+				AB01643E4205F7818E44590D /* InputMonitoringPermissionService.swift */,
 				E8BE7B91D23778BA7DBF3109 /* LaunchAtLoginService.swift */,
 				5878A133EF3ADA9F52C44FBB /* ShelfActionService.swift */,
 				CCD2A448DA69D1A72B4DF1FA /* ShelfWindowManager.swift */,
@@ -167,7 +174,6 @@
 			isa = PBXGroup;
 			children = (
 				29DECA39C7799BD75D56251B /* AnimatedSVGView.swift */,
-				0431590044435E92E6E0160E /* FileDragSourceView.swift */,
 				7FE86B244679C85061AE61D2 /* ShelfContextMenu.swift */,
 				2404CF97215AEC8D681563B9 /* ShelfDropHostingView.swift */,
 				F2FA7E7D666DBDA30AE420CD /* ShelfWindowController.swift */,
@@ -328,9 +334,10 @@
 				90955B990316499CEC07E247 /* DropPointApp.swift in Sources */,
 				267599EB0F05CCD940B1A9BD /* ExpandedShelfView.swift in Sources */,
 				B1B7335DF5DFECA45789D7A4 /* ExternalFileDragMonitor.swift in Sources */,
-				36BE829994399FE577D0ED00 /* FileDragSourceView.swift in Sources */,
 				9257E0A31EAA7E8929CA2C36 /* FileDropImporter.swift in Sources */,
 				592644BCFC3DC1171D9A2A22 /* GlobalHotKeyMonitor.swift in Sources */,
+				6AC0AF7D2F1B80F3E0132A4B /* ImageCompressionService.swift in Sources */,
+				242FF4C03E5A443E28833862 /* InputMonitoringPermissionService.swift in Sources */,
 				E10D2DC8B0A4CCFFF10740DD /* LaunchAtLoginService.swift in Sources */,
 				2FAD835D667303C8CEEB53D1 /* ProjectAttribution.swift in Sources */,
 				4A34E9983C3A1B053BEB9082 /* SettingsGlassComponents.swift in Sources */,
@@ -339,6 +346,7 @@
 				C5B43D9F33FB4B646279C085 /* ShelfActionService.swift in Sources */,
 				AEC152BEA65B60BFE7EDE958 /* ShelfContextMenu.swift in Sources */,
 				255B52FD63A42E32810A7724 /* ShelfDropHostingView.swift in Sources */,
+				CB6C29B72C794C35E91985D5 /* ShelfFocusRing.swift in Sources */,
 				F2C6F5B1FC2B0C72B2D10CC3 /* ShelfGeometry.swift in Sources */,
 				8A2ECEE1B29A77148A0B2570 /* ShelfItem.swift in Sources */,
 				842B6FE264E2839B6C18DF4D /* ShelfPalette.swift in Sources */,
@@ -506,7 +514,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -514,7 +522,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
@@ -543,7 +551,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -551,7 +559,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;

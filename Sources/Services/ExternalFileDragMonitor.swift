@@ -69,14 +69,19 @@ final class ExternalFileDragMonitor {
     var activationModifier: ActivationModifier = .shift
     var sensitivity: ShakeSensitivity = .medium
 
-    private let dragPasteboard = NSPasteboard(name: .drag)
+    private let dragPasteboard: NSPasteboard
     private var globalMonitor: Any?
     private var idleTimer: Timer?
     private var idleChangeCount = 0
     private var sessionBaseline = 0
-    private var activeFileDrag = false
+    private(set) var activeFileDrag = false
     private var mouseDownLocation: NSPoint = .zero
     private var activationState = ExternalDragActivationState()
+
+    init(dragPasteboard: NSPasteboard = NSPasteboard(name: .drag)) {
+        self.dragPasteboard = dragPasteboard
+        idleChangeCount = dragPasteboard.changeCount
+    }
 
     func start() {
         guard globalMonitor == nil else { return }
@@ -87,7 +92,12 @@ final class ExternalFileDragMonitor {
             Task { @MainActor in self?.handle(event) }
         }
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.sampleIdlePasteboard() }
+            Task { @MainActor in
+                self?.samplePasteboard(
+                    mouseButtonPressed: NSEvent.pressedMouseButtons & 1 != 0,
+                    mouseLocation: NSEvent.mouseLocation
+                )
+            }
         }
         timer.tolerance = 0.04
         RunLoop.main.add(timer, forMode: .common)
@@ -105,12 +115,9 @@ final class ExternalFileDragMonitor {
     private func handle(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown:
-            if activeFileDrag { finishDrag() }
-            sessionBaseline = idleChangeCount
-            mouseDownLocation = NSEvent.mouseLocation
-            activationState.reset()
+            beginPotentialDrag(at: NSEvent.mouseLocation)
         case .leftMouseDragged:
-            if !activeFileDrag { detectFileDragStart() }
+            if !activeFileDrag { detectFileDragStart(at: NSEvent.mouseLocation) }
             if activeFileDrag {
                 detectModifierActivation(in: event)
                 detectShake(at: NSEvent.mouseLocation)
@@ -123,8 +130,14 @@ final class ExternalFileDragMonitor {
         }
     }
 
-    private func detectFileDragStart() {
-        let current = NSEvent.mouseLocation
+    func beginPotentialDrag(at location: NSPoint) {
+        if activeFileDrag { finishDrag() }
+        sessionBaseline = idleChangeCount
+        mouseDownLocation = location
+        activationState.reset()
+    }
+
+    private func detectFileDragStart(at current: NSPoint) {
         let dx = abs(current.x - mouseDownLocation.x)
         let dy = abs(current.y - mouseDownLocation.y)
         guard dx > 3 || dy > 3,
@@ -141,8 +154,17 @@ final class ExternalFileDragMonitor {
         onFileDragEnd?()
     }
 
-    private func sampleIdlePasteboard() {
-        guard NSEvent.pressedMouseButtons & 1 == 0 else { return }
+    func samplePasteboard(mouseButtonPressed: Bool, mouseLocation: NSPoint) {
+        if mouseButtonPressed {
+            if !activeFileDrag {
+                detectFileDragStart(at: mouseLocation)
+            }
+            if activeFileDrag {
+                detectModifierActivation(using: NSEvent.modifierFlags)
+                detectShake(at: mouseLocation)
+            }
+            return
+        }
         if activeFileDrag { finishDrag() }
         idleChangeCount = dragPasteboard.changeCount
     }
@@ -159,9 +181,12 @@ final class ExternalFileDragMonitor {
     }
 
     private func detectModifierActivation(in event: NSEvent) {
+        detectModifierActivation(using: event.modifierFlags.union(NSEvent.modifierFlags))
+    }
+
+    private func detectModifierActivation(using modifierFlags: NSEvent.ModifierFlags) {
         guard modifierActivationEnabled else { return }
-        let pressed = event.modifierFlags.contains(activationModifier.eventFlag)
-            || NSEvent.modifierFlags.contains(activationModifier.eventFlag)
+        let pressed = modifierFlags.contains(activationModifier.eventFlag)
         if activationState.activateForModifier(pressed) {
             onModifierActivation?()
         }

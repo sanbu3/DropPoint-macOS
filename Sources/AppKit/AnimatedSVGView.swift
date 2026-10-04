@@ -7,9 +7,12 @@ struct AnimatedSVGView: NSViewRepresentable {
     var animationEnabled = true
     var pauseAfterCycle = false
     var randomRestart = false
+    var onReady: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        let coordinator = Coordinator()
+        coordinator.onReady = onReady
+        return coordinator
     }
 
     func makeNSView(context: Context) -> NonInteractiveSVGWebView {
@@ -76,10 +79,18 @@ struct AnimatedSVGView: NSViewRepresentable {
         var pauseAfterCycle = false
         var randomRestart = false
         var isLoaded = false
+        var onReady: (() -> Void)?
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
             isLoaded = true
             applyAnimationState(in: webView)
+            // Navigation completion precedes WebKit's first painted frame.
+            webView.callAsyncJavaScript(
+                "await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));",
+                arguments: [:], in: nil, in: .page
+            ) { [weak self] _ in
+                self?.onReady?()
+            }
         }
 
         func setAnimationEnabled(_ enabled: Bool, in webView: WKWebView) {
@@ -191,6 +202,28 @@ struct DragPassThroughOverlay: NSViewRepresentable {
     }
 }
 
+/// A reliable AppKit-backed grab area for moving a borderless shelf. SwiftUI's
+/// background hit testing can otherwise change when file content is inserted.
+struct ShelfWindowDragOverlay: NSViewRepresentable {
+    let store: ShelfStore
+
+    func makeNSView(context: Context) -> DragPassThroughNSView {
+        let view = DragPassThroughNSView()
+        update(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: DragPassThroughNSView, context: Context) {
+        update(nsView)
+    }
+
+    private func update(_ view: DragPassThroughNSView) {
+        view.dropStore = store
+        view.onBackgroundDoubleClick = store.clear
+        view.contextMenuProvider = { ShelfContextMenuFactory.make(for: store) }
+    }
+}
+
 /// Overlay variant that initiates a file drag-out session.
 struct FileDragOutOverlay: NSViewRepresentable {
     let store: ShelfStore
@@ -199,7 +232,7 @@ struct FileDragOutOverlay: NSViewRepresentable {
     var onClick: ((NSEvent.ModifierFlags) -> Void)?
     var onDoubleClick: (() -> Void)?
     var onDragBegan: (() -> Void)?
-    var onDragEnded: ((Bool, Bool) -> Void)?
+    var onDragEnded: ((NSDragOperation, Bool) -> Void)?
     var contextMenuProvider: (() -> NSMenu)?
 
     func makeNSView(context: Context) -> DragPassThroughNSView {
@@ -228,20 +261,114 @@ struct FileDragOutOverlay: NSViewRepresentable {
     }
 }
 
+struct DragOutGestureState {
+    private(set) var hasStartedDrag = false
+    private(set) var isMouseDown = false
+    private var didActivateSession = false
+
+    mutating func mouseDown() {
+        hasStartedDrag = false
+        isMouseDown = true
+        didActivateSession = false
+    }
+
+    mutating func claimDragStart() -> Bool {
+        guard !hasStartedDrag else { return false }
+        hasStartedDrag = true
+        return true
+    }
+
+    mutating func draggingSessionWillBegin() -> Bool {
+        guard hasStartedDrag, isMouseDown else { return false }
+        didActivateSession = true
+        return true
+    }
+
+    mutating func draggingSessionEnded() -> Bool {
+        // AppKit can deliver one last mouseDragged before mouseUp. The gate
+        // therefore belongs to the physical mouse sequence, not the session.
+        defer {
+            isMouseDown = false
+            didActivateSession = false
+        }
+        return didActivateSession
+    }
+
+    mutating func mouseUp() {
+        isMouseDown = false
+    }
+}
+
+enum ShelfFileDragIntent: Equatable {
+    case dragFiles
+    case moveShelf
+}
+
+enum ShelfBackgroundMouseDownAction: Equatable {
+    case moveShelf
+    case clearShelf
+}
+
+struct ShelfWindowDragTracker {
+    private var initialMouseLocationOnScreen: NSPoint?
+    private var initialWindowOrigin: NSPoint?
+
+    var isActive: Bool {
+        initialMouseLocationOnScreen != nil && initialWindowOrigin != nil
+    }
+
+    mutating func begin(mouseLocationOnScreen: NSPoint, windowOrigin: NSPoint) {
+        initialMouseLocationOnScreen = mouseLocationOnScreen
+        initialWindowOrigin = windowOrigin
+    }
+
+    func windowOrigin(for mouseLocationOnScreen: NSPoint) -> NSPoint? {
+        guard let initialMouseLocationOnScreen, let initialWindowOrigin else { return nil }
+        return NSPoint(
+            x: initialWindowOrigin.x + mouseLocationOnScreen.x - initialMouseLocationOnScreen.x,
+            y: initialWindowOrigin.y + mouseLocationOnScreen.y - initialMouseLocationOnScreen.y
+        )
+    }
+
+    mutating func end() {
+        initialMouseLocationOnScreen = nil
+        initialWindowOrigin = nil
+    }
+}
+
+enum ShelfPointerInteractionPolicy {
+    static func fileDragIntent(modifiers: NSEvent.ModifierFlags) -> ShelfFileDragIntent {
+        modifiers.contains(.control) ? .moveShelf : .dragFiles
+    }
+
+    static func backgroundMouseDown(
+        clickCount: Int,
+        hasFiles: Bool
+    ) -> ShelfBackgroundMouseDownAction {
+        clickCount >= 2 && hasFiles ? .clearShelf : .moveShelf
+    }
+}
+
 final class DragPassThroughNSView: NSView {
     weak var dropStore: ShelfStore?
     var itemsProvider: (() -> [ShelfItem])?
     var dragAction: DragDefaultAction = .copy
     var onFileClick: ((NSEvent.ModifierFlags) -> Void)?
     var onFileDoubleClick: (() -> Void)?
+    var onBackgroundDoubleClick: (() -> Void)?
     var onDragBegan: (() -> Void)?
-    var onDragOutEnded: ((Bool, Bool) -> Void)?
+    var onDragOutEnded: ((NSDragOperation, Bool) -> Void)?
     var contextMenuProvider: (() -> NSMenu)?
 
     var mouseDownCanMove: Bool = true
     override var mouseDownCanMoveWindow: Bool { mouseDownCanMove }
 
-    private var dragOutStarted = false
+    // A shelf commonly sits above another active app. Keep the initial
+    // mouse-down/drag sequence intact instead of consuming it for activation.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    private var dragOutGesture = DragOutGestureState()
+    private var windowDragTracker = ShelfWindowDragTracker()
     private var dragKeepOpen = false
     private var dragOutMouseDownPoint: NSPoint = .zero
     private let dragOutThreshold: CGFloat = 5
@@ -254,17 +381,16 @@ final class DragPassThroughNSView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard let dropStore, !dropStore.isDraggingOut else { return [] }
+        guard let dropStore else { return [] }
+        if isReturningDrag(sender, to: dropStore) { return .copy }
         let acceptsFiles = FileDropImporter.canImport(from: sender.draggingPasteboard)
-        if acceptsFiles {
-            activateShelfWindow()
-        }
         dropStore.updateDropTargeted(acceptsFiles)
         return acceptsFiles ? .copy : []
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard let dropStore, !dropStore.isDraggingOut else { return [] }
+        guard let dropStore else { return [] }
+        if isReturningDrag(sender, to: dropStore) { return .copy }
         let acceptsFiles = FileDropImporter.canImport(from: sender.draggingPasteboard)
         dropStore.updateDropTargeted(acceptsFiles)
         return acceptsFiles ? .copy : []
@@ -280,19 +406,39 @@ final class DragPassThroughNSView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let dropStore, !dropStore.isDraggingOut else { return false }
-        let accepted = FileDropImporter.importFiles(from: sender.draggingPasteboard) { [weak dropStore] urls in
-            dropStore?.add(urls: urls)
+        guard let dropStore else { return false }
+        if isReturningDrag(sender, to: dropStore) {
+            dropStore.acceptInternalDragReturn()
+            dropStore.updateDropTargeted(false)
+            return true
         }
+        return acceptExternalPasteboard(sender.draggingPasteboard)
+    }
+
+    @discardableResult
+    func acceptExternalPasteboard(_ pasteboard: NSPasteboard) -> Bool {
+        guard let dropStore else { return false }
+        let accepted = FileDropImporter.importFiles(from: pasteboard) { [weak dropStore] event in
+            switch event {
+            case .imported(let urls): dropStore?.add(urls: urls)
+            case .failed(let message): dropStore?.onDropFailed?(message)
+            }
+        }
+        if accepted { dropStore.onDropAccepted?() }
         dropStore.updateDropTargeted(false)
         return accepted
     }
 
     override func mouseDown(with event: NSEvent) {
         guard itemsProvider != nil else {
-            window?.performDrag(with: event)
+            handleBackgroundMouseDown(event)
             return
         }
+        if ShelfPointerInteractionPolicy.fileDragIntent(modifiers: event.modifierFlags) == .moveShelf {
+            beginWindowDrag(with: event)
+            return
+        }
+        dragOutGesture.mouseDown()
         dragKeepOpen = event.modifierFlags.contains(.shift)
         dragOutMouseDownPoint = convert(event.locationInWindow, from: nil)
         if event.clickCount >= 2 {
@@ -303,13 +449,16 @@ final class DragPassThroughNSView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard !dragOutStarted, let items = itemsProvider?(), !items.isEmpty else { return }
+        if windowDragTracker.isActive {
+            continueWindowDrag(with: event)
+            return
+        }
+        guard !dragOutGesture.hasStartedDrag, let items = itemsProvider?(), !items.isEmpty else { return }
         let current = convert(event.locationInWindow, from: nil)
         let dx = current.x - dragOutMouseDownPoint.x
         let dy = current.y - dragOutMouseDownPoint.y
         guard dx * dx + dy * dy > dragOutThreshold * dragOutThreshold else { return }
-        dragOutStarted = true
-        onDragBegan?()
+        guard dragOutGesture.claimDragStart() else { return }
 
         let point = convert(event.locationInWindow, from: nil)
         let draggingItems = items.enumerated().map { index, item -> NSDraggingItem in
@@ -319,7 +468,8 @@ final class DragPassThroughNSView: NSView {
             draggingItem.setDraggingFrame(frame, contents: item.image)
             return draggingItem
         }
-        beginDraggingSession(with: draggingItems, event: event, source: self)
+        let session = beginDraggingSession(with: draggingItems, event: event, source: self)
+        session.animatesToStartingPositionsOnCancelOrFail = true
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -331,15 +481,39 @@ final class DragPassThroughNSView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        dragOutStarted = false
+        windowDragTracker.end()
+        dragOutGesture.mouseUp()
         dragKeepOpen = false
         dragOutMouseDownPoint = .zero
     }
 
-    private func activateShelfWindow() {
+    private func handleBackgroundMouseDown(_ event: NSEvent) {
+        let hasFiles = dropStore?.items.isEmpty == false
+        switch ShelfPointerInteractionPolicy.backgroundMouseDown(
+            clickCount: event.clickCount,
+            hasFiles: hasFiles
+        ) {
+        case .moveShelf:
+            beginWindowDrag(with: event)
+        case .clearShelf:
+            onBackgroundDoubleClick?()
+        }
+    }
+
+    private func beginWindowDrag(with event: NSEvent) {
         guard let window else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        windowDragTracker.begin(
+            mouseLocationOnScreen: window.convertPoint(toScreen: event.locationInWindow),
+            windowOrigin: window.frame.origin
+        )
+    }
+
+    private func continueWindowDrag(with event: NSEvent) {
+        guard let window,
+              let origin = windowDragTracker.windowOrigin(
+                for: window.convertPoint(toScreen: event.locationInWindow)
+              ) else { return }
+        window.setFrameOrigin(origin)
     }
 
     private func draggingRemainsInsideShelf(_ sender: NSDraggingInfo?) -> Bool {
@@ -348,13 +522,28 @@ final class DragPassThroughNSView: NSView {
         return contentView.bounds.contains(point)
     }
 
+    private func isReturningDrag(_ sender: NSDraggingInfo, to store: ShelfStore) -> Bool {
+        guard let source = sender.draggingSource as? DragPassThroughNSView else { return false }
+        return source.dropStore === store
+    }
+
 }
 
 // MARK: - DraggingSource (for drag-out)
 
 extension DragPassThroughNSView: NSDraggingSource {
+    func draggingSession(_ session: NSDraggingSession, willBeginAt screenPoint: NSPoint) {
+        let shouldActivate = dragOutGesture.draggingSessionWillBegin()
+        if shouldActivate {
+            onDragBegan?()
+        } else {
+            session.animatesToStartingPositionsOnCancelOrFail = false
+            hideLateDraggingItems(in: session)
+            postReleaseForLateDraggingSession(at: screenPoint)
+        }
+    }
+
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        if context == .outsideApplication { return .copy }
         let flags = NSEvent.modifierFlags
         if flags.contains(.option) { return .copy }
         if flags.contains(.command) { return .move }
@@ -364,8 +553,39 @@ extension DragPassThroughNSView: NSDraggingSource {
     func ignoreModifierKeys(for session: NSDraggingSession) -> Bool { false }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        onDragOutEnded?(!operation.isEmpty, dragKeepOpen)
-        dragOutStarted = false
+        let didActivate = dragOutGesture.draggingSessionEnded()
+        if didActivate {
+            onDragOutEnded?(operation, dragKeepOpen)
+        }
         dragKeepOpen = false
+    }
+
+    private func postReleaseForLateDraggingSession(at screenPoint: NSPoint) {
+        guard let window else { return }
+        let location = window.convertPoint(fromScreen: screenPoint)
+        guard let release = NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: location,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 0
+        ) else { return }
+        NSApp.postEvent(release, atStart: true)
+    }
+
+    private func hideLateDraggingItems(in session: NSDraggingSession) {
+        let transparentImage = NSImage(size: NSSize(width: 1, height: 1))
+        session.enumerateDraggingItems(
+            options: [],
+            for: self,
+            classes: [NSURL.self],
+            searchOptions: [:]
+        ) { draggingItem, _, _ in
+            draggingItem.setDraggingFrame(draggingItem.draggingFrame, contents: transparentImage)
+        }
     }
 }

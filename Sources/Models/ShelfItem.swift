@@ -22,27 +22,62 @@ struct ShelfItem: Identifiable, Hashable {
     @MainActor
     static func make(url: URL) -> ShelfItem? {
         let fileURL = url.standardizedFileURL
-        guard fileURL.isFileURL, FileManager.default.fileExists(atPath: fileURL.path) else {
-            return nil
-        }
-
-        let workspaceIcon = NSWorkspace.shared.icon(forFile: fileURL.path)
+        guard fileURL.isFileURL else { return nil }
+        // A type icon gives immediate feedback without asking Finder/file providers for an icon.
+        let type = UTType(filenameExtension: fileURL.pathExtension) ?? .data
+        let workspaceIcon = NSWorkspace.shared.icon(for: type)
         let image = (workspaceIcon.copy() as? NSImage) ?? workspaceIcon
         image.size = NSSize(width: 76, height: 76)
         return ShelfItem(url: fileURL, image: image, isThumbnail: false)
     }
 
+    private static let thumbnailQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "DropPoint.thumbnail-decoding"
+        queue.qualityOfService = .utility
+        queue.maxConcurrentOperationCount = 2
+        return queue
+    }()
+
     @MainActor
-    static func thumbnail(url: URL, maxPixelSize: Int = 152) async -> NSImage? {
+    static func loadPreview(url: URL, maxPixelSize: Int = 152) async -> ShelfItem? {
         let fileURL = url.standardizedFileURL
-        let cgImage = await Task.detached(priority: .utility) {
-            downsampledImage(url: fileURL, maxPixelSize: maxPixelSize)
-        }.value
-        guard let cgImage else { return nil }
-        return NSImage(
-            cgImage: cgImage,
-            size: NSSize(width: cgImage.width, height: cgImage.height)
-        )
+        guard !Task.isCancelled else { return nil }
+        let cancellation = ThumbnailCancellation()
+        let preview: FilePreview? = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                thumbnailQueue.addOperation {
+                    guard !cancellation.isCancelled,
+                          FileManager.default.fileExists(atPath: fileURL.path) else {
+                        continuation.resume(returning: nil)
+                        return
+                    }
+                    let values = try? fileURL.resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
+                    let type = values?.isDirectory == true ? UTType.folder : values?.contentType ?? .data
+                    let image: CGImage? = type.conforms(to: .image) && !cancellation.isCancelled
+                        ? autoreleasepool { downsampledImage(url: fileURL, maxPixelSize: maxPixelSize) }
+                        : nil
+                    continuation.resume(returning: FilePreview(type: type, image: image))
+                }
+            }
+        } onCancel: {
+            cancellation.cancel()
+        }
+        guard !Task.isCancelled, let preview else { return nil }
+        let image: NSImage
+        if let cgImage = preview.image {
+            image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        } else {
+            let icon = NSWorkspace.shared.icon(for: preview.type)
+            image = (icon.copy() as? NSImage) ?? icon
+            image.size = NSSize(width: 76, height: 76)
+        }
+        return ShelfItem(url: fileURL, image: image, isThumbnail: preview.image != nil)
+    }
+
+    private struct FilePreview: Sendable {
+        let type: UTType
+        let image: CGImage?
     }
 
     func replacingImage(_ image: NSImage, isThumbnail: Bool) -> ShelfItem {
@@ -66,7 +101,20 @@ struct ShelfItem: Identifiable, Hashable {
     }
 }
 
-enum ShelfPresentation: Equatable {
-    case standard
-    case tray
+/// A cancelled queued decode must still resume its continuation without touching the file.
+private final class ThumbnailCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        defer { lock.unlock() }
+        cancelled = true
+    }
 }

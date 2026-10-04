@@ -55,17 +55,6 @@ enum ShelfGeometry {
         }
     }
 
-    static func quickShelfOrigin(statusFrame: NSRect, in workArea: NSRect) -> NSPoint {
-        clamp(
-            NSPoint(
-                x: statusFrame.midX - compactSize.width / 2,
-                y: statusFrame.minY - compactSize.height - 6
-            ),
-            size: compactSize,
-            to: workArea.insetBy(dx: 8, dy: 8)
-        )
-    }
-
     static func clamp(_ point: NSPoint, size: NSSize, to area: NSRect) -> NSPoint {
         NSPoint(
             x: min(max(point.x, area.minX), max(area.minX, area.maxX - size.width)),

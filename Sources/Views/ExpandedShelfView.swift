@@ -54,7 +54,7 @@ struct ExpandedShelfView: View {
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                         }
                         .buttonStyle(.plain)
-                        .focusable(false)
+                        .shelfFocusRing(Capsule(), color: palette.accent)
                         .foregroundStyle(palette.accent)
                     }
                 }
@@ -113,7 +113,7 @@ private struct ExpandedShelfHeader: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .focusable(false)
+            .shelfFocusRing(Circle(), color: palette.accent)
             .help("收起文件列表")
 
             VStack(alignment: .leading, spacing: 1) {
@@ -152,7 +152,7 @@ private struct ExpandedShelfHeader: View {
                         .background(palette.accentSurface, in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .focusable(false)
+                    .shelfFocusRing(Capsule(), color: palette.accent)
                     .help("在 Finder 中显示选中的文件")
 
                     Button {
@@ -170,7 +170,7 @@ private struct ExpandedShelfHeader: View {
                         .background(palette.danger.opacity(0.12), in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .focusable(false)
+                    .shelfFocusRing(Capsule(), color: palette.danger)
                     .help("从文件架中移除选中的文件")
                 }
             }
@@ -261,6 +261,7 @@ private struct ExpandedFileTile: View {
                 )
             }
             .frame(maxWidth: .infinity, minHeight: 104, maxHeight: 104)
+            .opacity(store.isDraggingOut && selected ? 0 : 1)
 
             Capsule()
                 .fill(selected ? palette.accent : .clear)

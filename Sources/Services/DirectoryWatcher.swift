@@ -6,22 +6,123 @@ import UniformTypeIdentifiers
 @MainActor
 final class DirectoryWatcher {
     var onNewFiles: (([URL]) -> Void)?
-    var fileFilter: ((URL) -> Bool)?
-    var ignoresReappearingFiles = false
+    var onReady: (() -> Void)?
+    var onError: ((String) -> Void)?
+    var fileFilter: (@Sendable (URL) -> Bool)? { didSet { restartIfRunning() } }
+    var ignoresReappearingFiles = false { didSet { restartIfRunning() } }
     var watchPaths: [String] = [] {
-        didSet {
-            guard isRunning, watchPaths != oldValue else { return }
-            restartSources()
+        didSet { if watchPaths != oldValue { restartIfRunning() } }
+    }
+    var fileCategory: WatchedFileCategory = .all {
+        didSet { if fileCategory != oldValue { restartIfRunning() } }
+    }
+
+    private let queue = DispatchQueue(label: "DropPoint.directory-observation", qos: .utility)
+    private var worker: DirectoryWatchWorker?
+    private var isRunning = false
+    private var isIgnoringChanges = false
+    private var generation = 0
+
+    func start() {
+        guard !isRunning else { return }
+        isRunning = true
+        restartIfRunning()
+    }
+
+    func stop() {
+        isRunning = false
+        isIgnoringChanges = false
+        generation += 1
+        if let worker { queue.async { worker.stop() } }
+        worker = nil
+    }
+
+    func setIgnoringChangesFromInternalDrag(_ ignoring: Bool) {
+        isIgnoringChanges = ignoring
+        if let worker { queue.async { worker.setIgnoringChangesFromInternalDrag(ignoring) } }
+    }
+
+    private func restartIfRunning() {
+        guard isRunning else { return }
+        generation += 1
+        let currentGeneration = generation
+        if let worker { queue.async { worker.stop() } }
+        let next = DirectoryWatchWorker(
+            queue: queue,
+            watchPaths: Array(Set(watchPaths.map { URL(fileURLWithPath: $0).standardizedFileURL.path })),
+            fileCategory: fileCategory,
+            fileFilter: fileFilter,
+            ignoresReappearingFiles: ignoresReappearingFiles,
+            onNewFiles: { [weak self] urls in
+                Task { @MainActor in
+                    guard let self, self.isRunning, self.generation == currentGeneration,
+                          !self.isIgnoringChanges else { return }
+                    self.onNewFiles?(urls)
+                }
+            },
+            onReady: { [weak self] in
+                Task { @MainActor in
+                    guard let self, self.isRunning, self.generation == currentGeneration else { return }
+                    self.onReady?()
+                }
+            },
+            onError: { [weak self] message in
+                Task { @MainActor in
+                    guard let self, self.isRunning, self.generation == currentGeneration else { return }
+                    self.onError?(message)
+                }
+            }
+        )
+        worker = next
+        let ignoring = isIgnoringChanges
+        queue.async {
+            next.start()
+            if ignoring { next.setIgnoringChangesFromInternalDrag(true) }
         }
     }
-    var fileCategory: WatchedFileCategory = .all
+
+    deinit {
+        if let worker { queue.async { worker.stop() } }
+    }
+}
+
+/// All mutable state and file-system work are confined to this serial utility queue.
+private final class DirectoryWatchWorker: @unchecked Sendable {
+    private let queue: DispatchQueue
+    private let watchPaths: [String]
+    private let fileCategory: WatchedFileCategory
+    private let fileFilter: (@Sendable (URL) -> Bool)?
+    private let ignoresReappearingFiles: Bool
+    private let onNewFiles: @Sendable ([URL]) -> Void
+    private let onReady: @Sendable () -> Void
+    private let onError: @Sendable (String) -> Void
+
+    init(
+        queue: DispatchQueue,
+        watchPaths: [String],
+        fileCategory: WatchedFileCategory,
+        fileFilter: (@Sendable (URL) -> Bool)?,
+        ignoresReappearingFiles: Bool,
+        onNewFiles: @escaping @Sendable ([URL]) -> Void,
+        onReady: @escaping @Sendable () -> Void,
+        onError: @escaping @Sendable (String) -> Void
+    ) {
+        self.queue = queue
+        self.watchPaths = watchPaths
+        self.fileCategory = fileCategory
+        self.fileFilter = fileFilter
+        self.ignoresReappearingFiles = ignoresReappearingFiles
+        self.onNewFiles = onNewFiles
+        self.onReady = onReady
+        self.onError = onError
+    }
 
     private var sources: [DispatchSourceFileSystemObject] = []
     private var pendingFiles: [String: [URL]] = [:]
     private var knownFiles: [String: Set<String>] = [:]
     private var knownFileIdentities: [String: [String: FileIdentity]] = [:]
     private var disappearedFileIdentities: [FileIdentity: Date] = [:]
-    private var flushWorkItem: DispatchWorkItem?
+    private var flushWorkItems: [String: DispatchWorkItem] = [:]
     private var resumeObservationWorkItem: DispatchWorkItem?
     private var isIgnoringChanges = false
     private var isRunning = false
@@ -30,6 +131,7 @@ final class DirectoryWatcher {
         guard !isRunning else { return }
         isRunning = true
         restartSources()
+        onReady()
     }
 
     func stop() {
@@ -61,14 +163,14 @@ final class DirectoryWatcher {
             self.resumeObservationWorkItem = nil
         }
         resumeObservationWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: workItem)
+        queue.asyncAfter(deadline: .now() + 0.45, execute: workItem)
     }
 
     private func stopSources() {
         sources.forEach { $0.cancel() }
         sources.removeAll()
-        flushWorkItem?.cancel()
-        flushWorkItem = nil
+        flushWorkItems.values.forEach { $0.cancel() }
+        flushWorkItems.removeAll()
         pendingFiles.removeAll()
         knownFiles.removeAll()
         knownFileIdentities.removeAll()
@@ -79,15 +181,15 @@ final class DirectoryWatcher {
         stopSources()
         for path in watchPaths {
             let url = URL(fileURLWithPath: path)
-            let files = directoryContents(at: url) ?? []
-            knownFiles[path] = Set(files.map(\.standardizedFileURL.path))
-            knownFileIdentities[path] = fileIdentities(for: files)
             let descriptor = open(url.path, O_EVTONLY)
-            guard descriptor >= 0 else { continue }
+            guard descriptor >= 0 else {
+                onError("无法监听 \(path)：\(String(cString: strerror(errno)))")
+                continue
+            }
             let source = DispatchSource.makeFileSystemObjectSource(
                 fileDescriptor: descriptor,
                 eventMask: [.write, .rename, .delete],
-                queue: .main
+                queue: queue
             )
             source.setEventHandler { [weak self] in
                 self?.directoryChanged(path: url.path)
@@ -97,15 +199,24 @@ final class DirectoryWatcher {
             }
             source.resume()
             sources.append(source)
+            if let files = directoryContents(at: url) {
+                knownFiles[path] = Set(files.map(\.standardizedFileURL.path))
+                knownFileIdentities[path] = ignoresReappearingFiles ? fileIdentities(for: files) : [:]
+            }
         }
     }
 
     private func directoryChanged(path: String) {
+        guard isRunning else { return }
         let url = URL(fileURLWithPath: path)
         guard let files = directoryContents(at: url) else { return }
         let current = Set(files.map { $0.standardizedFileURL.path })
-        let previous = knownFiles[path] ?? []
-        let currentIdentities = fileIdentities(for: files)
+        guard let previous = knownFiles[path] else {
+            knownFiles[path] = current
+            knownFileIdentities[path] = ignoresReappearingFiles ? fileIdentities(for: files) : [:]
+            return
+        }
+        let currentIdentities = ignoresReappearingFiles ? fileIdentities(for: files) : [:]
         let previousIdentities = knownFileIdentities[path] ?? [:]
 
         if ignoresReappearingFiles {
@@ -132,40 +243,45 @@ final class DirectoryWatcher {
 
         pendingFiles[path, default: []].append(contentsOf: newFiles)
 
-        flushWorkItem?.cancel()
+        guard flushWorkItems[path] == nil else { return }
         let workItem = DispatchWorkItem { [weak self] in
-            self?.flushPending()
+            self?.flushPending(path: path)
         }
-        flushWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: workItem)
+        flushWorkItems[path] = workItem
+        queue.asyncAfter(deadline: .now() + 1.5, execute: workItem)
     }
 
-    private func flushPending() {
-        for (_, files) in pendingFiles where !files.isEmpty {
-            let unique = Array(Set(files)).filter { url in
-                fileFilter?(url) ?? fileCategory.includes(url)
-            }
-            if !unique.isEmpty {
-                onNewFiles?(unique)
-            }
+    private func flushPending(path: String) {
+        flushWorkItems.removeValue(forKey: path)
+        let files = pendingFiles.removeValue(forKey: path) ?? []
+        guard !files.isEmpty else { return }
+        let unique = Array(Set(files)).filter { url in
+            fileFilter?(url) ?? fileCategory.includes(url)
         }
-        pendingFiles.removeAll()
+        if !unique.isEmpty {
+            onNewFiles(unique)
+        }
     }
 
     private func directoryContents(at url: URL) -> [URL]? {
-        try? FileManager.default.contentsOfDirectory(
-            at: url,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        )
+        do {
+            return try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            onError("无法读取 \(url.path)：\(error.localizedDescription)")
+            return nil
+        }
     }
 
     private func refreshKnownFiles() {
         for path in watchPaths {
             let url = URL(fileURLWithPath: path)
-            let files = directoryContents(at: url) ?? []
+            guard let files = directoryContents(at: url) else { continue }
             knownFiles[path] = Set(files.map(\.standardizedFileURL.path))
-            knownFileIdentities[path] = fileIdentities(for: files)
+            knownFileIdentities[path] = ignoresReappearingFiles ? fileIdentities(for: files) : [:]
         }
     }
 

@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var settings = AppSettings()
+    private(set) var inputMonitoringPermission = InputMonitoringPermissionService()
     private var manager: ShelfWindowManager!
     private var statusBar: StatusBarController!
     private var hotKeys: GlobalHotKeyMonitor!
@@ -11,11 +12,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var screenshotWatcher: DirectoryWatcher!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Task.detached(priority: .utility) { FileDropImporter.cleanupStaleImports() }
         NSApp.setActivationPolicy(settings.showInDock ? .regular : .accessory)
 
-        manager = ShelfWindowManager(settings: settings)
+        manager = ShelfWindowManager(
+            settings: settings,
+            inputMonitoringPermission: inputMonitoringPermission
+        )
         statusBar = StatusBarController(settings: settings, manager: manager)
-        manager.statusFrameProvider = { [weak statusBar] in statusBar?.statusFrame }
         statusBar.setVisible(settings.showMenuBarIcon || !settings.showInDock)
 
         settings.onChange = { [weak self] in
@@ -41,13 +45,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             else { self.manager.spawn() }
         }
         hotKeys.onClipboardShortcut = { [weak self] in
-            let urls = ClipboardService.fileURLs()
-            if !urls.isEmpty { self?.manager.spawn(urls: urls) }
+            Task { @MainActor [weak self] in
+                let urls = await ClipboardService.fileURLs()
+                if !urls.isEmpty { self?.manager.spawn(urls: urls) }
+            }
         }
         hotKeys.onRestoreShortcut = { [weak self] in
             self?.manager.restoreLastClosedShelf()
         }
+        hotKeys.onHoveredShelfPasteShortcut = { [weak self] in
+            self?.manager.pasteClipboardIntoHoveredShelf()
+        }
+        hotKeys.onHoveredShelfPreviewShortcut = { [weak self] in
+            self?.manager.previewHoveredShelf()
+        }
+        manager.onPasteHoverAvailabilityChanged = { [weak self] available in
+            self?.hotKeys.setHoveredShelfShortcutsEnabled(available)
+        }
         hotKeys.start()
+        if let errorMessage = hotKeys.registrationErrorMessage,
+           ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            DispatchQueue.main.async { [weak self] in
+                self?.showHotKeyRegistrationError(errorMessage)
+            }
+        }
 
         dragMonitor = ExternalFileDragMonitor()
         dragMonitor.shakeActivationEnabled = settings.shakeActivationEnabled
@@ -67,14 +88,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dragMonitor.start()
 
         directoryWatcher = DirectoryWatcher()
+        directoryWatcher.onError = { message in NSLog("DropPoint: %@", message) }
         directoryWatcher.onNewFiles = { [weak manager] urls in
             manager?.spawn(urls: urls, source: .watchedDirectory)
         }
         directoryWatcher.fileCategory = settings.watchedFileCategory
 
         screenshotWatcher = DirectoryWatcher()
+        screenshotWatcher.onError = { message in NSLog("DropPoint: %@", message) }
         screenshotWatcher.ignoresReappearingFiles = true
-        screenshotWatcher.fileFilter = ScreenshotFileDetector.includes
+        screenshotWatcher.fileFilter = { ScreenshotFileDetector.includes($0) }
         screenshotWatcher.onNewFiles = { [weak manager] urls in
             manager?.spawn(urls: urls, source: .screenshot)
         }
@@ -118,6 +141,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dragMonitor?.stop()
         directoryWatcher?.stop()
         screenshotWatcher?.stop()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        inputMonitoringPermission.refresh()
+    }
+
+    func showSettings() {
+        manager?.showSettings()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -180,5 +211,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .standardizedFileURL
             .resolvingSymlinksInPath()
             .path
+    }
+
+    private func showHotKeyRegistrationError(_ detail: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "部分全局快捷键不可用"
+        alert.informativeText = detail
+        alert.addButton(withTitle: "好")
+        alert.runModal()
     }
 }

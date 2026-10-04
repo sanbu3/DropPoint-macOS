@@ -4,11 +4,13 @@ import SwiftUI
 final class ShelfPanel: NSPanel {
     var onUserInteraction: (() -> Void)?
     var onPrecisionScroll: ((NSEvent) -> Bool)?
+    var onGestureEvent: ((NSEvent) -> Void)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
     override func sendEvent(_ event: NSEvent) {
+        onGestureEvent?(event)
         switch event.type {
         case .leftMouseDown, .leftMouseDragged, .rightMouseDown, .keyDown, .scrollWheel:
             onUserInteraction?()
@@ -30,33 +32,29 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     let store: ShelfStore
-    let isPending: Bool
     var onClosed: ((ShelfWindowController) -> Void)?
     var onWillDismiss: ((ShelfWindowController) -> Void)?
     var isPreviewActive: (() -> Bool)?
     var onSnapRequested: ((ShelfWindowController) -> Void)?
     var onImmediateSnapRequested: ((ShelfWindowController) -> Void)?
     var onInteraction: ((ShelfWindowController) -> Void)?
+    var onHoverChanged: ((ShelfWindowController, Bool) -> Void)?
 
     private var compactOrigin: NSPoint?
     private var snapWorkItem: DispatchWorkItem?
     private var closeKeyMonitor: Any?
     private var isAnimatingOut = false
+    private var visibilityGeneration = 0
     private var isProgrammaticallyMoving = false
     private var programmaticMoveGeneration = 0
     private var isTrackingPullDown = false
     private var pullDownDistance: CGFloat = 0
     private var didTriggerPullDownDismiss = false
+    private var optionGesture = OptionHoldClearGesture()
+    private var optionHoldTimer: Timer?
 
-    private var dragGhostView: NSImageView?
-    private var dragGhostMonitor: Any?
-    private var dragGhostStart: NSPoint = .zero
-    private let dragGhostRect = NSRect(x: 53, y: 48, width: 92, height: 94)
-    private var trackingArea: NSTrackingArea?
-
-    init(store: ShelfStore, isPending: Bool, alwaysOnTop: Bool) {
+    init(store: ShelfStore, alwaysOnTop: Bool) {
         self.store = store
-        self.isPending = isPending
 
         let size = ShelfGeometry.compactSize
         let panel = ShelfPanel(
@@ -67,19 +65,21 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.animationBehavior = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        panel.level = isPending || alwaysOnTop ? .floating : .normal
+        panel.level = alwaysOnTop ? .floating : .normal
         panel.title = "DropPoint"
 
         let hostingView = ShelfDropHostingView(store: store)
         hostingView.sizingOptions = []
         hostingView.autoresizingMask = [.width, .height]
         hostingView.frame = NSRect(origin: .zero, size: size)
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
         panel.contentView = hostingView
 
         super.init(window: panel)
@@ -88,6 +88,9 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             guard let self else { return }
             self.onInteraction?(self)
         }
+        panel.onGestureEvent = { [weak self] event in
+            self?.handleOptionGestureEvent(event)
+        }
         panel.onPrecisionScroll = { [weak self] event in
             self?.handlePrecisionScroll(event) ?? false
         }
@@ -95,6 +98,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             guard let self else { return }
             self.onInteraction?(self)
             self.onImmediateSnapRequested?(self)
+        }
+        hostingView.onHoverChanged = { [weak self] isInside in
+            guard let self else { return }
+            self.store.isHovered = isInside
+            self.onHoverChanged?(self, isInside)
         }
         closeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self,
@@ -105,25 +113,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             return nil
         }
 
-        let trackingArea = NSTrackingArea(
-            rect: hostingView.bounds,
-            options: [.mouseEnteredAndExited, .activeAlways],
-            owner: self,
-            userInfo: nil
-        )
-        hostingView.addTrackingArea(trackingArea)
-        self.trackingArea = trackingArea
     }
 
     required init?(coder: NSCoder) { nil }
 
     var panel: NSPanel? { window as? NSPanel }
-
-    override func mouseEntered(with event: NSEvent) {
-        guard let window else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-    }
 
     func show(at origin: NSPoint, activating: Bool) {
         window?.setFrameOrigin(origin)
@@ -135,17 +129,21 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func orderOutAnimated() {
+        cancelOptionHold()
+        resetPullDownGesture()
         onWillDismiss?(self)
         animateOut(.hide)
     }
 
     func closeAnimated() {
+        cancelOptionHold()
+        resetPullDownGesture()
         onWillDismiss?(self)
         animateOut(.close)
     }
 
     func setAlwaysOnTop(_ enabled: Bool) {
-        panel?.level = isPending || enabled ? .floating : .normal
+        panel?.level = enabled ? .floating : .normal
     }
 
     func move(to origin: NSPoint, duration: TimeInterval) {
@@ -207,7 +205,6 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         if !expanded { compactOrigin = nil }
-        updateTrackingArea()
     }
 
     func updateExpandedSize(for itemCount: Int) {
@@ -229,25 +226,15 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
                 window.animator().setFrame(targetFrame, display: true)
             }
         }
-        updateTrackingArea()
     }
 
-    private func updateTrackingArea() {
-        guard let contentView = window?.contentView, let old = trackingArea else { return }
-        contentView.removeTrackingArea(old)
-        let new = NSTrackingArea(
-            rect: contentView.bounds,
-            options: [.mouseEnteredAndExited, .activeAlways],
-            owner: self,
-            userInfo: nil
-        )
-        contentView.addTrackingArea(new)
-        trackingArea = new
+    func windowDidBecomeKey(_ notification: Notification) {
+        store.isFocused = true
     }
-
-    func windowDidBecomeKey(_ notification: Notification) { store.isFocused = true }
 
     func windowDidResignKey(_ notification: Notification) {
+        cancelOptionHold()
+        resetPullDownGesture()
         store.isFocused = false
         if store.autoCollapseExpanded, store.isExpanded,
            isPreviewActive?() != true {
@@ -256,7 +243,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowDidMove(_ notification: Notification) {
-        guard !isPending, !isAnimatingOut, !isProgrammaticallyMoving else { return }
+        guard !isAnimatingOut, !isProgrammaticallyMoving else { return }
         snapWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -267,21 +254,24 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        cancelOptionHold()
+        store.cancelPendingWork()
         snapWorkItem?.cancel()
         onWillDismiss?(self)
         if let closeKeyMonitor { NSEvent.removeMonitor(closeKeyMonitor) }
         closeKeyMonitor = nil
-        endDragGhost()
         onClosed?(self)
     }
 
     private func showWindowAnimated(activating: Bool) {
         guard let window else { return }
+        visibilityGeneration += 1
         isAnimatingOut = false
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let contentLayer = prepareContentLayer()
 
         if reduceMotion {
+            contentLayer?.removeAllAnimations()
             window.alphaValue = 1
             contentLayer?.transform = CATransform3DIdentity
             if activating { window.makeKeyAndOrderFront(nil) }
@@ -295,27 +285,31 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         if activating { window.makeKeyAndOrderFront(nil) }
         else { window.orderFrontRegardless() }
 
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.14
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            window.animator().alphaValue = 1
-        }
         if let contentLayer {
-            let animation = CAKeyframeAnimation(keyPath: "transform")
-            animation.values = [
-                CATransform3DMakeScale(0.94, 0.94, 1),
-                CATransform3DMakeScale(1.012, 1.012, 1),
-                CATransform3DIdentity
-            ]
-            animation.keyTimes = [0, 0.72, 1]
-            animation.timingFunctions = [
-                CAMediaTimingFunction(name: .easeOut),
-                CAMediaTimingFunction(name: .easeOut)
-            ]
-            animation.duration = 0.2
-            animation.isRemovedOnCompletion = true
-            contentLayer.add(animation, forKey: "dropPointAppear")
+            contentViewLayoutBeforePresentation()
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0
+            fade.toValue = 1
+            fade.duration = 0.2
+            let group = CAAnimationGroup()
+            group.animations = [fade]
+            if window.backingScaleFactor > 1 {
+                let scale = CABasicAnimation(keyPath: "transform.scale")
+                scale.fromValue = 0.98
+                scale.toValue = 1
+                scale.duration = 0.2
+                group.animations?.append(scale)
+            }
+            group.duration = 0.2
+            group.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 0.61, 0.36, 1)
+            contentLayer.add(group, forKey: "dropPointAppear")
         }
+        window.alphaValue = 1
+    }
+
+    private func contentViewLayoutBeforePresentation() {
+        window?.contentView?.layoutSubtreeIfNeeded()
+        window?.contentView?.displayIfNeeded()
     }
 
     private func animateOut(_ disposition: OutDisposition) {
@@ -325,26 +319,43 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             return
         }
         isAnimatingOut = true
+        store.isHovered = false
+        visibilityGeneration += 1
+        let generation = visibilityGeneration
         let originalOrigin = window.frame.origin
+        let contentLayer = prepareContentLayer()
         guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            contentLayer?.removeAllAnimations()
+            contentLayer?.transform = CATransform3DIdentity
             window.orderOut(nil)
             finishOut(disposition, restoring: originalOrigin)
             return
         }
 
-        let screenFrame = (window.screen ?? NSScreen.screens.first)?.frame ?? window.frame
-        let exitOrigin = nearestEdgeExitOrigin(for: window.frame, in: screenFrame)
-        let distance = hypot(exitOrigin.x - originalOrigin.x, exitOrigin.y - originalOrigin.y)
-        let duration = min(0.42, 0.22 + TimeInterval(distance / 3_500))
+        contentLayer?.removeAllAnimations()
+        contentLayer?.transform = CATransform3DIdentity
+        if let contentLayer, window.backingScaleFactor > 1 {
+            let animation = CAKeyframeAnimation(keyPath: "transform.scale")
+            animation.values = [1, 0.99, 0.96]
+            animation.keyTimes = [0, 0.38, 1]
+            animation.timingFunctions = [
+                CAMediaTimingFunction(name: .easeIn),
+                CAMediaTimingFunction(controlPoints: 0.48, 0, 0.9, 0.42)
+            ]
+            animation.duration = 0.16
+            animation.fillMode = .forwards
+            animation.isRemovedOnCompletion = false
+            contentLayer.add(animation, forKey: "dropPointDisappear")
+        }
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = duration
+            context.duration = 0.16
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            window.animator().setFrameOrigin(exitOrigin)
             window.animator().alphaValue = 0
         } completionHandler: { [weak self] in
             Task { @MainActor in
-                guard let self, let window = self.window else { return }
+                guard let self, self.visibilityGeneration == generation,
+                      let window = self.window else { return }
                 window.orderOut(nil)
                 self.finishOut(disposition, restoring: originalOrigin)
             }
@@ -363,32 +374,80 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    private func nearestEdgeExitOrigin(for frame: NSRect, in screenFrame: NSRect) -> NSPoint {
-        let edgeDistances: [(distance: CGFloat, origin: NSPoint)] = [
-            (
-                abs(frame.minX - screenFrame.minX),
-                NSPoint(x: screenFrame.minX - frame.width - 8, y: frame.origin.y)
-            ),
-            (
-                abs(screenFrame.maxX - frame.maxX),
-                NSPoint(x: screenFrame.maxX + 8, y: frame.origin.y)
-            ),
-            (
-                abs(frame.minY - screenFrame.minY),
-                NSPoint(x: frame.origin.x, y: screenFrame.minY - frame.height - 8)
-            ),
-            (
-                abs(screenFrame.maxY - frame.maxY),
-                NSPoint(x: frame.origin.x, y: screenFrame.maxY + 8)
-            ),
-        ]
-        return edgeDistances.min(by: { $0.distance < $1.distance })?.origin ?? frame.origin
-    }
-
     private static func isCommandW(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
         guard modifiers == .command else { return false }
         return event.keyCode == 13 || event.charactersIgnoringModifiers?.lowercased() == "w"
+    }
+
+    private func handleOptionGestureEvent(_ event: NSEvent) {
+        guard window?.isKeyWindow == true, store.isFocused else {
+            cancelOptionHold()
+            return
+        }
+        switch event.type {
+        case .flagsChanged:
+            let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+            guard event.keyCode == 58 || event.keyCode == 61,
+                  modifiers.isEmpty || modifiers == .option,
+                  !store.items.isEmpty, !store.isDraggingOut, !store.isDropTargeted,
+                  !store.isClearing, !store.isPullClearing else {
+                cancelOptionHold()
+                return
+            }
+            let holding = optionGesture.update(
+                optionPressed: modifiers == .option,
+                timestamp: event.timestamp,
+                doubleClickInterval: NSEvent.doubleClickInterval
+            )
+            guard holding else {
+                optionHoldTimer?.invalidate()
+                optionHoldTimer = nil
+                store.isOptionClearActive = false
+                store.optionClearProgress = 0
+                return
+            }
+            onInteraction?(self)
+            guard optionHoldTimer == nil else { return }
+            resetPullDownGesture()
+            store.isOptionClearActive = true
+            store.optionClearProgress = 0
+            let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.advanceOptionHold() }
+            }
+            timer.tolerance = 0.005
+            RunLoop.main.add(timer, forMode: .common)
+            optionHoldTimer = timer
+        case .keyDown, .leftMouseDown, .rightMouseDown, .leftMouseDragged, .scrollWheel:
+            cancelOptionHold()
+        default:
+            break
+        }
+    }
+
+    private func advanceOptionHold() {
+        guard window?.isVisible == true, window?.isKeyWindow == true,
+              store.isFocused, !store.items.isEmpty, !store.isDraggingOut,
+              !store.isDropTargeted, !store.isClearing, !store.isPullClearing,
+              NSEvent.modifierFlags.intersection([.command, .option, .control, .shift]) == .option else {
+            cancelOptionHold()
+            return
+        }
+        let progress = optionGesture.progress(at: ProcessInfo.processInfo.systemUptime)
+        store.optionClearProgress = progress
+        if progress >= 1 {
+            cancelOptionHold()
+            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+            store.clearKeepingEmptyShelf()
+        }
+    }
+
+    private func cancelOptionHold() {
+        optionHoldTimer?.invalidate()
+        optionHoldTimer = nil
+        optionGesture.reset()
+        store.isOptionClearActive = false
+        store.optionClearProgress = 0
     }
 
     private func handlePrecisionScroll(_ event: NSEvent) -> Bool {
@@ -452,78 +511,64 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         CATransaction.setDisableActions(true)
         layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         layer.position = CGPoint(x: contentView.bounds.midX, y: contentView.bounds.midY)
+        layer.allowsEdgeAntialiasing = true
+        layer.minificationFilter = .trilinear
+        layer.magnificationFilter = .trilinear
         CATransaction.commit()
         return layer
     }
 
-    func beginDragGhost() {
-        guard let window, let contentView = window.contentView else { return }
-        endDragGhost()
+}
 
-        let rect = dragGhostRect
-        guard let image = makeDragGhostImage(size: rect.size) else { return }
-        let imageView = NSImageView(frame: rect)
-        imageView.image = image
-        imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.wantsLayer = true
-        imageView.layer?.opacity = 0.85
-        contentView.addSubview(imageView)
-        dragGhostView = imageView
+/// Pure timing state, using event timestamps / system uptime rather than wall-clock dates.
+struct OptionHoldClearGesture {
+    static let holdDuration: TimeInterval = 1.2
+    private var isPressed = false
+    private var firstPressAt: TimeInterval?
+    private var firstReleaseAt: TimeInterval?
+    private(set) var holdStartedAt: TimeInterval?
 
-        dragGhostStart = NSEvent.mouseLocation
-        dragGhostMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
-            guard let self, event.type == .leftMouseDragged else { return }
-            let current = NSEvent.mouseLocation
-            let dx = current.x - self.dragGhostStart.x
-            let dy = current.y - self.dragGhostStart.y
-            self.dragGhostView?.frame.origin = NSPoint(
-                x: rect.origin.x + dx,
-                y: rect.origin.y - dy
-            )
-        }
-    }
-
-    private func makeDragGhostImage(size: NSSize) -> NSImage? {
-        let items = Array(store.selectedItems.prefix(3))
-        guard !items.isEmpty else { return nil }
-
-        return NSImage(size: size, flipped: false) { _ in
-            for index in items.indices.reversed() {
-                let item = items[index]
-                let xOffset: CGFloat = index == 1 ? -8 : (index == 2 ? 8 : 0)
-                let yOffset: CGFloat = index == 0 ? 0 : (index == 1 ? 2 : 3)
-                let rotation: CGFloat = index == 1 ? -7 : (index == 2 ? 7 : 0)
-                let imageRect = NSRect(
-                    x: (size.width - 76) / 2 + xOffset,
-                    y: (size.height - 76) / 2 + yOffset,
-                    width: 76,
-                    height: 76
-                )
-
-                NSGraphicsContext.saveGraphicsState()
-                let transform = NSAffineTransform()
-                transform.translateX(by: imageRect.midX, yBy: imageRect.midY)
-                transform.rotate(byDegrees: rotation)
-                transform.translateX(by: -imageRect.midX, yBy: -imageRect.midY)
-                transform.concat()
-                item.image.draw(
-                    in: imageRect,
-                    from: .zero,
-                    operation: .sourceOver,
-                    fraction: 1,
-                    respectFlipped: true,
-                    hints: [.interpolation: NSImageInterpolation.high]
-                )
-                NSGraphicsContext.restoreGraphicsState()
+    mutating func update(
+        optionPressed: Bool,
+        timestamp: TimeInterval,
+        doubleClickInterval: TimeInterval
+    ) -> Bool {
+        guard optionPressed != isPressed else { return holdStartedAt != nil }
+        isPressed = optionPressed
+        if optionPressed {
+            if let released = firstReleaseAt, timestamp >= released,
+               timestamp - released <= doubleClickInterval {
+                holdStartedAt = timestamp
+                firstPressAt = nil
+                firstReleaseAt = nil
+            } else {
+                firstPressAt = timestamp
+                firstReleaseAt = nil
+                holdStartedAt = nil
             }
-            return true
+        } else if holdStartedAt != nil {
+            reset()
+        } else {
+            if let pressed = firstPressAt, timestamp >= pressed,
+               timestamp - pressed <= doubleClickInterval {
+                firstReleaseAt = timestamp
+            } else {
+                firstReleaseAt = nil
+            }
+            firstPressAt = nil
         }
+        return holdStartedAt != nil
     }
 
-    func endDragGhost() {
-        dragGhostView?.removeFromSuperview()
-        dragGhostView = nil
-        if let monitor = dragGhostMonitor { NSEvent.removeMonitor(monitor) }
-        dragGhostMonitor = nil
+    func progress(at timestamp: TimeInterval) -> CGFloat {
+        guard let started = holdStartedAt, isPressed else { return 0 }
+        return min(max((timestamp - started) / Self.holdDuration, 0), 1)
+    }
+
+    mutating func reset() {
+        isPressed = false
+        firstPressAt = nil
+        firstReleaseAt = nil
+        holdStartedAt = nil
     }
 }

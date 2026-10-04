@@ -270,10 +270,21 @@ final class AppSettings {
         showInDock = defaults.object(forKey: Keys.showInDock) as? Bool ?? false
         instantActionsEnabled = defaults.object(forKey: Keys.instantActionsEnabled) as? Bool ?? true
         if let rawActions = defaults.array(forKey: Keys.enabledActions) as? [String] {
-            enabledActions = rawActions.compactMap(ShelfAction.init(rawValue:))
+            var restoredActions = rawActions.compactMap(ShelfAction.init(rawValue:))
+            if !defaults.bool(forKey: Keys.didAddImageCompressionAction),
+               !restoredActions.contains(.compressImages) {
+                restoredActions.append(.compressImages)
+                restoredActions.sort {
+                    ShelfAction.allCases.firstIndex(of: $0)!
+                        < ShelfAction.allCases.firstIndex(of: $1)!
+                }
+                defaults.set(restoredActions.map(\.rawValue), forKey: Keys.enabledActions)
+            }
+            enabledActions = restoredActions
         } else {
             enabledActions = ShelfAction.defaultActions
         }
+        defaults.set(true, forKey: Keys.didAddImageCompressionAction)
         if let data = defaults.data(forKey: Keys.customActions),
            let actions = try? JSONDecoder().decode([CustomShelfAction].self, from: data) {
             customActions = actions
@@ -386,6 +397,7 @@ final class AppSettings {
         static let showInDock = "showInDock"
         static let instantActionsEnabled = "instantActionsEnabled"
         static let enabledActions = "enabledActions"
+        static let didAddImageCompressionAction = "didAddImageCompressionAction"
         static let customActions = "customActions"
         static let screenshotDetectionEnabled = "screenshotDetectionEnabled"
         static let watchedDirectories = "watchedDirectories"

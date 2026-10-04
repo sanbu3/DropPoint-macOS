@@ -9,24 +9,26 @@ struct ShelfView: View {
     @State private var keyDownMonitor: Any?
     @State private var handleOpacity: CGFloat = 0.64
 
-    private var palette: ShelfPalette { ShelfPalette(dark: colorScheme == .dark) }
+    private var palette: ShelfPalette {
+        ShelfPalette(dark: colorScheme == .dark, focused: store.isFocused)
+    }
 
     var body: some View {
         ZStack {
             shelfBackground
             if store.isExpanded {
                 ExpandedShelfView(store: store, palette: palette)
+                    .opacity(store.isOptionClearActive ? 0.45 : 1)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: store.isOptionClearActive)
             } else {
                 compactContent
             }
             controls
             dragHandle
+            windowDragAreas
         }
         .clipShape(.rect(cornerRadius: 25, style: .continuous))
         .contentShape(.rect(cornerRadius: 25, style: .continuous))
-        .scaleEffect(store.isDropTargeted ? 0.992 : 1)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: store.isDropTargeted)
-        .focusEffectDisabled()
         .onAppear {
             installKeyMonitor()
             syncMotionPreferences()
@@ -37,14 +39,17 @@ struct ShelfView: View {
     }
 
     private var shelfBackground: some View {
-        nativeGlassBackground
+        let shape = RoundedRectangle(cornerRadius: 25, style: .continuous)
+        return nativeGlassBackground
             .overlay {
-                RoundedRectangle(cornerRadius: 25, style: .continuous)
-                    .stroke(palette.highlight, lineWidth: store.isFocused ? 1.5 : 1)
+                shape
+                    .fill(palette.focusedSurface)
+                    .opacity(store.isFocused ? 1 : 0)
             }
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(.black.opacity(colorScheme == .dark ? 0.34 : 0.055)).frame(height: 1)
+            .overlay {
+                shape.strokeBorder(palette.highlight, lineWidth: 1)
             }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: store.isFocused)
     }
 
     @ViewBuilder
@@ -77,7 +82,7 @@ struct ShelfView: View {
     @ViewBuilder
     private var compactContent: some View {
         ZStack {
-            if (store.isDropTargeted && !store.isDraggingOut) || store.presentation == .tray {
+            if store.isDropTargeted && !store.isDraggingOut {
                 DropGuideView(
                     animationEnabled: !reduceMotion,
                     palette: palette,
@@ -137,42 +142,82 @@ struct ShelfView: View {
     }
 
     private var dragHandle: some View {
+        let holding = store.isOptionClearActive
         let progress = min(max(store.dismissGestureProgress, 0), 1)
         let lengthProgress = min(progress * 1.65, 1)
         let emphasisProgress = min(max((progress - 0.22) / 0.78, 0), 1)
+        let active = store.isHovered || store.isDropTargeted || store.isFocused
+        let restingWidth: CGFloat = active ? 54 : 38
+        let width: CGFloat = holding ? 126 : restingWidth + (110 - restingWidth) * lengthProgress
+        let height: CGFloat = holding ? 9 : 4 + 2 * emphasisProgress
 
-        return VStack {
+        return VStack(spacing: 5) {
             Spacer()
-            ZStack {
-                ZStack {
-                    Capsule().fill(palette.handle)
+            if holding {
+                Text("继续按住 ⌥ · 1.2 秒清空")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(palette.danger)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(palette.surface, in: Capsule())
+                    .accessibilityLabel("继续按住 Option，满一点二秒清空文件架，松开取消")
+            }
+            ZStack(alignment: .leading) {
+                Capsule().fill(palette.handle)
+                if holding {
+                    Rectangle()
+                        .fill(palette.danger.gradient)
+                        .frame(width: width * store.optionClearProgress)
+                } else {
+                    Capsule()
+                        .fill(store.isDropTargeted ? palette.accent : palette.ink.opacity(0.65))
+                        .opacity(active ? 1 : 0)
                     Capsule()
                         .fill(palette.danger)
                         .opacity(emphasisProgress)
                 }
-                .frame(
-                    width: 38 + 46 * lengthProgress,
-                    height: 4 + 4 * emphasisProgress
-                )
-                .opacity(max(handleOpacity, 0.64 + 0.36 * progress))
             }
-            .frame(width: 92, height: 8)
+            .frame(width: width, height: height)
+            .clipShape(Capsule())
+            .opacity(holding || active ? 1 : max(handleOpacity, 0.64 + 0.36 * progress))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(holding ? "清空进度" : "文件架手柄")
+            .accessibilityValue(holding ? "\(Int(store.optionClearProgress * 100))%" : "")
+            .animation(reduceMotion ? nil : .smooth(duration: 0.16), value: holding)
             .padding(.bottom, 7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
         .animation(
-            reduceMotion || store.isDismissGestureActive
-                ? nil
-                : .smooth(duration: 0.18),
+            reduceMotion || store.isDismissGestureActive ? nil : .smooth(duration: 0.2),
+            value: active
+        )
+        .animation(
+            reduceMotion || store.isDismissGestureActive ? nil : .smooth(duration: 0.18),
             value: progress
         )
+    }
+
+    private var windowDragAreas: some View {
+        ZStack {
+            ShelfWindowDragOverlay(store: store)
+                .frame(width: 148, height: 42)
+                .position(x: 78, y: 21)
+                .help("拖动文件架 · 双击清空")
+
+            ShelfWindowDragOverlay(store: store)
+                .frame(width: 120, height: 22)
+                .position(x: 99, y: 196)
+                .help("拖动文件架 · 双击清空 · Control-拖动文件图标也可移动")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func installKeyMonitor() {
         guard keyDownMonitor == nil else { return }
         keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak store = store] event in
-            guard let store, store.isFocused else { return event }
+            guard let store, store.isFocused, event.window?.isKeyWindow == true,
+                  (event.window?.windowController as? ShelfWindowController)?.store === store else { return event }
 
             let chars = event.charactersIgnoringModifiers?.lowercased() ?? ""
             let code = event.keyCode
@@ -187,8 +232,22 @@ struct ShelfView: View {
                 store.toggleExpanded()
                 return nil
             }
+            if (code == 51 || code == 117), modifiers == .command {
+                store.clear()
+                return nil
+            }
             if store.isExpanded, (code == 51 || code == 117) {
                 store.removeSelected()
+                return nil
+            }
+            if store.isExpanded, modifiers.isEmpty {
+                switch code {
+                case 123: store.moveSelection(by: -1)
+                case 124: store.moveSelection(by: 1)
+                case 125: store.moveSelection(by: 3)
+                case 126: store.moveSelection(by: -3)
+                default: return event
+                }
                 return nil
             }
 
@@ -203,8 +262,10 @@ struct ShelfView: View {
                 return nil
             }
             if chars == "v" || code == 9 {
-                let urls = ClipboardService.fileURLs()
-                if !urls.isEmpty { store.add(urls: urls) }
+                Task { @MainActor [weak store] in
+                    let urls = await ClipboardService.fileURLs()
+                    if !urls.isEmpty { store?.add(urls: urls) }
+                }
                 return nil
             }
             return event
@@ -233,12 +294,24 @@ private struct EmptyShelfView: View {
     let animationEnabled: Bool
     let palette: ShelfPalette
     let store: ShelfStore
+    @State private var animationReady = false
+
+    private static let firstFrame: NSImage? = Bundle.main.url(forResource: "Cat_in_Box", withExtension: "svg")
+        .flatMap { NSImage(contentsOf: $0) }
 
     var body: some View {
         VStack(spacing: 4) {
             ZStack {
-                AnimatedSVGView(name: "Cat_in_Box", animationEnabled: animationEnabled, pauseAfterCycle: true, randomRestart: true)
+                if !animationReady, let firstFrame = Self.firstFrame {
+                    Image(nsImage: firstFrame)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 112, height: 112)
+                        .allowsHitTesting(false)
+                }
+                AnimatedSVGView(name: "Cat_in_Box", animationEnabled: animationEnabled, pauseAfterCycle: true, randomRestart: true, onReady: { animationReady = true })
                     .frame(width: 112, height: 112)
+                    .opacity(animationReady ? 1 : 0)
                 DragPassThroughOverlay(store: store)
                     .frame(width: 112, height: 112)
             }
@@ -279,9 +352,9 @@ private struct ShelfControlButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .focusable(false)
+        .shelfFocusRing(Circle(), color: palette.accent)
         .background(hovered ? palette.controlHover : .clear, in: Circle())
-        .opacity(hovered ? 0.9 : (danger ? 0.72 : 0.34))
+        .opacity(hovered ? 0.95 : (danger ? 0.78 : 0.56))
         .onHover { hovered = $0 }
         .help(label)
     }

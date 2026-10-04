@@ -6,10 +6,13 @@ struct DropPointApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(
-                settings: appDelegate.settings,
-                onDismiss: { NSApp.keyWindow?.close() }
-            )
+            EmptyView()
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("设置…") { appDelegate.showSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }

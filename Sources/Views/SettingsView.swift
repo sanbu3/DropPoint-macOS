@@ -47,6 +47,7 @@ private enum SettingsPage: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     let settings: AppSettings
+    let inputMonitoringPermission: InputMonitoringPermissionService
     let onDismiss: () -> Void
 
     @State private var draft: SettingsDraft
@@ -55,8 +56,13 @@ struct SettingsView: View {
     @State private var loginItemError: String?
     @State private var keyMonitor: Any?
 
-    init(settings: AppSettings, onDismiss: @escaping () -> Void) {
+    init(
+        settings: AppSettings,
+        inputMonitoringPermission: InputMonitoringPermissionService,
+        onDismiss: @escaping () -> Void
+    ) {
         self.settings = settings
+        self.inputMonitoringPermission = inputMonitoringPermission
         self.onDismiss = onDismiss
         _draft = State(initialValue: SettingsDraft(settings))
     }
@@ -82,14 +88,12 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .focusable(false)
-            .focusEffectDisabled()
             .help("关闭设置（⌘W）")
             .accessibilityLabel("关闭设置")
             .padding(.top, 10)
             .padding(.trailing, 14)
         }
         .frame(minWidth: 820, minHeight: 560)
-        .focusEffectDisabled()
         .onAppear { installKeyMonitor() }
         .onDisappear { removeKeyMonitor() }
         .onChange(of: draft) { settings.apply(draft) }
@@ -154,8 +158,6 @@ struct SettingsView: View {
                     .contentShape(.rect(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
-                .focusable(false)
-                .focusEffectDisabled()
                 .help(page.title)
             }
             }
@@ -189,7 +191,6 @@ struct SettingsView: View {
                     NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
                 }
                 .controlSize(.small)
-                .focusEffectDisabled()
                 .frame(maxWidth: .infinity)
             }
             .padding(12)
@@ -272,6 +273,18 @@ struct SettingsView: View {
     private var activationPage: some View {
         VStack(spacing: 18) {
             DropPointSettingsCard {
+                settingRow(
+                    icon: permissionIcon,
+                    title: inputMonitoringPermission.title,
+                    detail: inputMonitoringPermission.detail
+                ) {
+                    Button(inputMonitoringPermission.buttonTitle) {
+                        inputMonitoringPermission.performPrimaryAction()
+                    }
+                }
+            }
+
+            DropPointSettingsCard {
                 VStack(spacing: 0) {
                     settingRow(
                         icon: "cursorarrow.motionlines",
@@ -279,7 +292,6 @@ struct SettingsView: View {
                         detail: "拖动文件时左右晃动光标，在当前位置创建文件架。"
                     ) {
                         Toggle("", isOn: $draft.shakeActivationEnabled).labelsHidden()
-                            .focusEffectDisabled()
                     }
                     Divider().padding(.leading, 54)
                     settingRow(
@@ -301,7 +313,6 @@ struct SettingsView: View {
                         detail: "拖动开始前或拖动过程中按住修饰键，在光标附近创建文件架。"
                     ) {
                         Toggle("", isOn: $draft.modifierActivationEnabled).labelsHidden()
-                            .focusEffectDisabled()
                     }
                     Divider().padding(.leading, 54)
                     settingRow(
@@ -368,7 +379,6 @@ struct SettingsView: View {
                         HStack(spacing: 8) {
                             Slider(value: $draft.autoSnapAfterDropDelay, in: 0...30, step: 1)
                                 .frame(width: 132)
-                                .focusEffectDisabled()
                             Text(autoSnapDelayTitle)
                                 .font(.system(size: 11, weight: .medium))
                                 .monospacedDigit()
@@ -446,7 +456,6 @@ struct SettingsView: View {
                         if index > 0 { Divider().padding(.leading, 54) }
                         settingRow(icon: action.systemImage, title: action.title, detail: action.detail) {
                             Toggle("", isOn: actionBinding(action)).labelsHidden()
-                                .focusEffectDisabled()
                         }
                     }
                 }
@@ -559,7 +568,6 @@ struct SettingsView: View {
                         }
                         Spacer()
                         Button("添加文件夹…", action: addWatchedDirectory)
-                            .focusEffectDisabled()
                     }
                     .padding(16)
 
@@ -610,10 +618,8 @@ struct SettingsView: View {
                     Button("在 Finder 中显示应用") {
                         NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
                     }
-                    .focusEffectDisabled()
 
                     Link("查看原生源码", destination: ProjectAttribution.sourceRepositoryURL)
-                        .focusEffectDisabled()
                 }
 
                 Link(destination: ProjectAttribution.nativeMaintainerURL) {
@@ -669,7 +675,6 @@ struct SettingsView: View {
     ) -> some View {
         settingRow(icon: icon, title: title, detail: detail) {
             Toggle("", isOn: value).labelsHidden()
-                .focusEffectDisabled()
         }
     }
 
@@ -683,7 +688,6 @@ struct SettingsView: View {
         settingRow(icon: icon, title: title, detail: detail) {
             Slider(value: value, in: range, step: 1)
                 .frame(width: 170)
-                .focusEffectDisabled()
         }
     }
 
@@ -695,7 +699,6 @@ struct SettingsView: View {
         }
         .labelsHidden()
         .fixedSize()
-        .focusEffectDisabled()
     }
 
     private func watchedFolderRow(_ path: String) -> some View {
@@ -800,6 +803,14 @@ struct SettingsView: View {
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.4.1"
+    }
+
+    private var permissionIcon: String {
+        switch inputMonitoringPermission.state {
+        case .notGranted: "hand.raised.fill"
+        case .requiresRelaunch: "arrow.clockwise.circle.fill"
+        case .active: "checkmark.shield.fill"
+        }
     }
 
     private func addWatchedDirectory() {

@@ -18,11 +18,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         rebuildMenu()
     }
 
-    var statusFrame: NSRect? {
-        guard let button = statusItem.button, let window = button.window else { return nil }
-        return window.convertToScreen(button.convert(button.bounds, to: nil))
-    }
-
     func refresh() { rebuildMenu() }
 
     func setVisible(_ visible: Bool) {
@@ -116,8 +111,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func restoreLastClosed() { manager.restoreLastClosedShelf() }
 
     @objc private func clipboardShelf() {
-        let urls = ClipboardService.fileURLs()
-        if !urls.isEmpty { manager.spawn(urls: urls) }
+        Task { @MainActor [weak self] in
+            let urls = await ClipboardService.fileURLs()
+            if !urls.isEmpty { self?.manager.spawn(urls: urls) }
+        }
     }
 
     @objc private func showAbout() {

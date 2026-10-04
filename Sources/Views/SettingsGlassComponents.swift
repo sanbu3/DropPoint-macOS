@@ -37,7 +37,6 @@ struct DropPointSettingsCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(Color.primary.opacity(0.07), lineWidth: 1)
             }
-            .shadow(color: .black.opacity(0.045), radius: 18, y: 8)
     }
 }
 
@@ -82,7 +81,7 @@ struct DropPointSettingsWindowConfigurator: NSViewRepresentable {
         window.titlebarAppearsTransparent = true
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = true
+        window.hasShadow = false
         window.isMovableByWindowBackground = true
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true

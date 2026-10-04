@@ -9,8 +9,7 @@ private final class QuickLookPreviewController: NSObject, @preconcurrency QLPrev
     private var keyMonitor: Any?
 
     func show(_ url: URL, for owner: ShelfWindowController) {
-        guard FileManager.default.fileExists(atPath: url.path),
-              let panel = QLPreviewPanel.shared() else { return }
+        guard url.isFileURL, let panel = QLPreviewPanel.shared() else { return }
         self.owner = owner
         urls = [url]
         panel.dataSource = self
@@ -47,7 +46,8 @@ private final class QuickLookPreviewController: NSObject, @preconcurrency QLPrev
         _ panel: QLPreviewPanel!,
         previewItemAt index: Int
     ) -> (any QLPreviewItem)! {
-        urls[index] as NSURL
+        guard urls.indices.contains(index) else { return nil }
+        return urls[index] as NSURL
     }
 
     private func installKeyMonitor() {
@@ -100,28 +100,46 @@ enum ShelfCreationSource {
     }
 }
 
+struct ShelfHoverPasteTargetState {
+    private(set) var target: ObjectIdentifier?
+
+    @discardableResult
+    mutating func update(_ identifier: ObjectIdentifier, isInside: Bool) -> Bool {
+        let wasAvailable = target != nil
+        if isInside {
+            target = identifier
+        } else if target == identifier {
+            target = nil
+        }
+        return wasAvailable != (target != nil)
+    }
+}
+
 @MainActor
 final class ShelfWindowManager {
     let settings: AppSettings
-    var statusFrameProvider: (() -> NSRect?)?
+    let inputMonitoringPermission: InputMonitoringPermissionService
     var onInternalDragActivityChanged: ((Bool) -> Void)?
+    var onPasteHoverAvailabilityChanged: ((Bool) -> Void)?
     private(set) var internalDragCount = 0
 
     private var shelves: [ShelfWindowController] = []
-    private var pendingShelf: ShelfWindowController?
-    private weak var presentedQuickShelf: ShelfWindowController?
     private var settingsWindowController: NSWindowController?
     private let quickLookPreviewController = QuickLookPreviewController()
-    private var quickCleanupWorkItem: DispatchWorkItem?
     private var emptyAutoCloseTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var idleSnapTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var postDropSnapTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var transientIDs = Set<ObjectIdentifier>()
     private var shakeGeneratedIDs = Set<ObjectIdentifier>()
     private var closedHistory: [[URL]] = []
+    private var pasteTargetState = ShelfHoverPasteTargetState()
 
-    init(settings: AppSettings) {
+    init(
+        settings: AppSettings,
+        inputMonitoringPermission: InputMonitoringPermissionService
+    ) {
         self.settings = settings
+        self.inputMonitoringPermission = inputMonitoringPermission
         debugLog("SNAP: ShelfWindowManager init")
     }
 
@@ -174,14 +192,14 @@ final class ShelfWindowManager {
             closeEmptyShelves()
         }
         let resolvedPosition = forcePosition ?? source.position(default: settings.shelfPosition)
-        let controller = makeShelf(presentation: .standard, pending: false)
+        let controller = makeShelf()
         let screen = targetScreen(for: resolvedPosition)
         let placementArea: NSRect
         switch source {
         case .manual:
-            placementArea = screen.visibleFrame
+            placementArea = screen?.visibleFrame ?? NSRect(origin: .zero, size: ShelfGeometry.compactSize)
         case .watchedDirectory, .screenshot:
-            placementArea = ShelfGeometry.dockingArea(in: screen.visibleFrame)
+            placementArea = ShelfGeometry.dockingArea(in: screen?.visibleFrame ?? NSRect(origin: .zero, size: ShelfGeometry.compactSize))
         }
         let base = ShelfGeometry.origin(
             for: resolvedPosition,
@@ -190,7 +208,7 @@ final class ShelfWindowManager {
         )
         let origin = cascadedOrigin(from: base, in: placementArea)
         shelves.append(controller)
-        controller.show(at: origin, activating: true)
+        controller.show(at: origin, activating: false)
         if !urls.isEmpty { controller.store.add(urls: urls) }
         if transient {
             transientIDs.insert(ObjectIdentifier(controller))
@@ -205,16 +223,12 @@ final class ShelfWindowManager {
         for controller in shelves where controller.store.items.isEmpty {
             controller.closeAnimated()
         }
-        if let pending = pendingShelf, pending.store.items.isEmpty {
-            pending.closeAnimated()
-            pendingShelf = nil
-        }
     }
 
     private func scheduleEmptyAutoClose(_ controller: ShelfWindowController) {
         cancelEmptyAutoClose(controller)
         let timeout = settings.emptyShelfTimeout
-        guard timeout > 0 else { return }
+        guard timeout > 0, !controller.store.keepsEmptyShelfAfterOptionClear else { return }
         let workItem = DispatchWorkItem { [weak self, weak controller] in
             guard let self, let controller,
                   controller.store.items.isEmpty,
@@ -239,6 +253,11 @@ final class ShelfWindowManager {
             guard let self, let controller,
                   self.shelves.contains(where: { $0 === controller }) else { return }
             self.idleSnapTimers.removeValue(forKey: ObjectIdentifier(controller))
+            guard !controller.store.isDraggingOut, !controller.store.isDropTargeted,
+                  !controller.store.isOptionClearActive, !controller.store.isDismissGestureActive else {
+                self.scheduleIdleSnap(controller)
+                return
+            }
             self.snapToTopRight(controller)
             if controller.store.items.isEmpty {
                 self.scheduleEmptyAutoClose(controller)
@@ -286,8 +305,8 @@ final class ShelfWindowManager {
             shelves.forEach { $0.orderOutAnimated() }
         } else {
             if settings.shelfPosition == .cursor { repositionNearCursor() }
-            for (index, controller) in shelves.enumerated() {
-                controller.showExistingAnimated(activating: index == shelves.count - 1)
+            for controller in shelves {
+                controller.showExistingAnimated(activating: false)
             }
         }
     }
@@ -299,59 +318,42 @@ final class ShelfWindowManager {
         spawn(urls: urls)
     }
 
+    func pasteClipboardIntoHoveredShelf() {
+        guard let controller = hoveredShelfController() else { return }
+        Task { @MainActor [weak self, weak controller] in
+            let urls = await ClipboardService.fileURLs()
+            guard let self, let controller, self.shelves.contains(where: { $0 === controller }) else { return }
+            guard !urls.isEmpty else { NSSound.beep(); return }
+            controller.store.add(urls: urls)
+            self.cancelEmptyAutoClose(controller)
+            self.scheduleIdleSnap(controller)
+        }
+    }
+
+    func previewHoveredShelf() {
+        guard let controller = hoveredShelfController() else { return }
+        if quickLookPreviewController.isShowing(for: controller) {
+            quickLookPreviewController.close(ifOwnedBy: controller)
+            return
+        }
+        guard controller.store.previewSelection() else {
+            NSSound.beep()
+            return
+        }
+        scheduleIdleSnap(controller)
+    }
+
     func updateAlwaysOnTop() {
         shelves.forEach { $0.setAlwaysOnTop(settings.alwaysOnTop) }
     }
 
     func updateDragAction(_ action: DragDefaultAction) {
         shelves.forEach { $0.store.dragAction = action }
-        pendingShelf?.store.dragAction = action
     }
 
     func updateInteractions() {
         shelves.forEach { applySettings(to: $0.store) }
-        if let pendingShelf { applySettings(to: pendingShelf.store) }
         shelves.forEach(scheduleIdleSnap)
-    }
-
-    func prepareQuickShelf() {
-        guard pendingShelf == nil else { return }
-        pendingShelf = makeShelf(presentation: .tray, pending: true)
-    }
-
-    func presentQuickShelf() {
-        guard !isInternalDragActive else { return }
-        quickCleanupWorkItem?.cancel()
-        prepareQuickShelf()
-        guard let controller = pendingShelf else { return }
-        let statusFrame = statusFrameProvider?()
-        let screen = statusFrame.flatMap { frame in
-            let center = NSPoint(x: frame.midX, y: frame.midY)
-            return NSScreen.screens.first(where: { $0.frame.contains(center) })
-        } ?? targetScreen(for: .cursor)
-        let origin = statusFrame.map {
-            ShelfGeometry.quickShelfOrigin(statusFrame: $0, in: screen.visibleFrame)
-        } ?? ShelfGeometry.origin(
-            for: .cursor,
-            in: screen.visibleFrame,
-            cursor: NSEvent.mouseLocation
-        )
-        presentedQuickShelf = controller
-        controller.show(at: origin, activating: false)
-    }
-
-    func endQuickShelfSession() {
-        guard let candidate = presentedQuickShelf else { return }
-        quickCleanupWorkItem?.cancel()
-        let item = DispatchWorkItem { [weak self, weak candidate] in
-            guard let self, let candidate,
-                  self.pendingShelf === candidate,
-                  self.presentedQuickShelf === candidate else { return }
-            candidate.orderOutAnimated()
-            self.presentedQuickShelf = nil
-        }
-        quickCleanupWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
     }
 
     func showSettings() {
@@ -363,6 +365,7 @@ final class ShelfWindowManager {
 
         let view = SettingsView(
             settings: settings,
+            inputMonitoringPermission: inputMonitoringPermission,
             onDismiss: { [weak self] in self?.settingsWindowController?.window?.close() }
         )
         let window = DropPointSettingsWindow(
@@ -375,10 +378,11 @@ final class ShelfWindowManager {
         window.minSize = NSSize(width: 820, height: 560)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = true
+        window.hasShadow = false
         window.isMovableByWindowBackground = true
         let hostingView = NSHostingView(rootView: view)
         hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
         hostingView.layer?.cornerRadius = 20
         hostingView.layer?.masksToBounds = true
         window.contentView = hostingView
@@ -400,7 +404,7 @@ final class ShelfWindowManager {
 
     private func snapAfterDrop(_ controller: ShelfWindowController) {
         guard let window = controller.window else { return }
-        let screen = window.screen ?? targetScreen(for: .cursor)
+        guard let screen = window.screen ?? targetScreen(for: .cursor) else { return }
         let dockingArea = ShelfGeometry.dockingArea(in: screen.visibleFrame)
         let position: ShelfPosition = settings.snapCorner == .topLeft ? .topLeft : .topRight
         let preferred = ShelfGeometry.origin(
@@ -443,15 +447,11 @@ final class ShelfWindowManager {
         controller.move(to: origin, duration: 0.34)
     }
 
-    private func makeShelf(
-        presentation: ShelfPresentation,
-        pending: Bool
-    ) -> ShelfWindowController {
-        let store = ShelfStore(presentation: presentation)
+    private func makeShelf() -> ShelfWindowController {
+        let store = ShelfStore()
         applySettings(to: store)
         let controller = ShelfWindowController(
             store: store,
-            isPending: pending,
             alwaysOnTop: settings.alwaysOnTop
         )
         store.onClose = { [weak controller] in controller?.closeAnimated() }
@@ -466,10 +466,6 @@ final class ShelfWindowManager {
         store.onItemCountChanged = { [weak controller] count in
             controller?.updateExpandedSize(for: count)
         }
-        store.onQuickCommit = { [weak self, weak controller] in
-            guard let controller else { return }
-            self?.commitQuickShelf(controller)
-        }
         store.onPreviewRequested = { [weak self, weak controller] url in
             guard let self, let controller else { return }
             self.quickLookPreviewController.show(url, for: controller)
@@ -480,6 +476,11 @@ final class ShelfWindowManager {
             self.cancelEmptyAutoClose(controller)
             self.transientIDs.remove(identifier)
             self.shakeGeneratedIDs.remove(identifier)
+        }
+        store.onDropFailed = { [weak self, weak controller] message in
+            guard let self, let controller else { return }
+            self.scheduleEmptyAutoClose(controller)
+            self.showError(title: "无法接收拖入内容", detail: message, window: controller.window)
         }
         store.onDropSettled = { [weak self, weak controller] in
             guard let self, let controller else { return }
@@ -494,18 +495,13 @@ final class ShelfWindowManager {
             guard let self, let controller else { return }
             self.scheduleEmptyAutoClose(controller)
         }
-        store.onInternalDragStateChanged = { [weak self, weak controller] began in
+        store.onInternalDragStateChanged = { [weak self] began in
             guard let self else { return }
             let wasActive = self.isInternalDragActive
             self.internalDragCount = max(0, self.internalDragCount + (began ? 1 : -1))
             let isActive = self.isInternalDragActive
             if isActive != wasActive {
                 self.onInternalDragActivityChanged?(isActive)
-            }
-            if began {
-                controller?.beginDragGhost()
-            } else {
-                controller?.endDragGhost()
             }
         }
         controller.onClosed = { [weak self] controller in self?.remove(controller) }
@@ -514,13 +510,42 @@ final class ShelfWindowManager {
             return self.quickLookPreviewController.isShowing(for: controller)
         }
         controller.onWillDismiss = { [weak self] controller in
-            self?.quickLookPreviewController.close(ifOwnedBy: controller)
+            guard let self else { return }
+            self.clearPasteTarget(controller)
+            self.quickLookPreviewController.close(ifOwnedBy: controller)
         }
         controller.onSnapRequested = { [weak self] controller in self?.snap(controller) }
         controller.onImmediateSnapRequested = { [weak self] controller in
             self?.snapAfterDrop(controller)
         }
         controller.onInteraction = { [weak self] controller in self?.scheduleIdleSnap(controller) }
+        controller.onHoverChanged = { [weak self] controller, isInside in
+            self?.updatePasteTarget(controller, isInside: isInside)
+        }
+        return controller
+    }
+
+    private func updatePasteTarget(_ controller: ShelfWindowController, isInside: Bool) {
+        let changed = pasteTargetState.update(ObjectIdentifier(controller), isInside: isInside)
+        if changed { onPasteHoverAvailabilityChanged?(pasteTargetState.target != nil) }
+    }
+
+    private func clearPasteTarget(_ controller: ShelfWindowController? = nil) {
+        guard let target = pasteTargetState.target else { return }
+        if let controller, ObjectIdentifier(controller) != target { return }
+        if pasteTargetState.update(target, isInside: false) {
+            onPasteHoverAvailabilityChanged?(false)
+        }
+    }
+
+    private func hoveredShelfController() -> ShelfWindowController? {
+        guard let target = pasteTargetState.target,
+              let controller = shelves.first(where: { ObjectIdentifier($0) == target }),
+              controller.window?.isVisible == true,
+              controller.window?.frame.contains(NSEvent.mouseLocation) == true else {
+            clearPasteTarget()
+            return nil
+        }
         return controller
     }
 
@@ -534,18 +559,8 @@ final class ShelfWindowManager {
         store.customActions = settings.customActions
     }
 
-    private func commitQuickShelf(_ controller: ShelfWindowController) {
-        guard pendingShelf === controller else { return }
-        quickCleanupWorkItem?.cancel()
-        controller.store.presentation = .standard
-        controller.setAlwaysOnTop(settings.alwaysOnTop)
-        shelves.append(controller)
-        pendingShelf = nil
-        presentedQuickShelf = nil
-        prepareQuickShelf()
-    }
-
     private func remove(_ controller: ShelfWindowController) {
+        clearPasteTarget(controller)
         let urls = controller.store.items.map(\.url)
         if !urls.isEmpty {
             closedHistory.append(urls)
@@ -558,16 +573,14 @@ final class ShelfWindowManager {
         transientIDs.remove(identifier)
         shakeGeneratedIDs.remove(identifier)
         shelves.removeAll { $0 === controller }
-        if pendingShelf === controller { pendingShelf = nil }
-        if presentedQuickShelf === controller { presentedQuickShelf = nil }
     }
 
-    private func targetScreen(for position: ShelfPosition) -> NSScreen {
+    private func targetScreen(for position: ShelfPosition) -> NSScreen? {
         if position == .cursor {
             let cursor = NSEvent.mouseLocation
-            return NSScreen.screens.first(where: { $0.frame.contains(cursor) }) ?? NSScreen.screens[0]
+            return NSScreen.screens.first(where: { $0.frame.contains(cursor) }) ?? NSScreen.screens.first ?? NSScreen.main
         }
-        return NSScreen.screens.first ?? NSScreen.main!
+        return NSScreen.screens.first ?? NSScreen.main
     }
 
     private func cascadedOrigin(from base: NSPoint, in workArea: NSRect) -> NSPoint {
@@ -579,27 +592,54 @@ final class ShelfWindowManager {
     }
 
     private func repositionNearCursor() {
-        let screen = targetScreen(for: .cursor)
+        guard let screen = targetScreen(for: .cursor) else { return }
         let base = ShelfGeometry.origin(
             for: .cursor,
             in: screen.visibleFrame,
             cursor: NSEvent.mouseLocation
         )
+        let origins = Self.repositionedOrigins(
+            base: base,
+            in: screen.visibleFrame,
+            windowSizes: shelves.map { $0.window?.frame.size ?? ShelfGeometry.compactSize }
+        )
+        for (controller, point) in zip(shelves, origins) {
+            controller.window?.setFrameOrigin(point)
+        }
+    }
+
+    static func repositionedOrigins(
+        base: NSPoint,
+        in workArea: NSRect,
+        windowSizes: [NSSize]
+    ) -> [NSPoint] {
         var occupiedFrames: [NSRect] = []
-        for controller in shelves {
+        return windowSizes.map { size in
             let point = ShelfGeometry.nonOverlappingOrigin(
                 preferred: base,
-                in: screen.visibleFrame,
+                size: size,
+                in: workArea,
                 occupiedFrames: occupiedFrames
             )
-            controller.window?.setFrameOrigin(point)
-            occupiedFrames.append(NSRect(origin: point, size: ShelfGeometry.compactSize))
+            occupiedFrames.append(NSRect(origin: point, size: size))
+            return point
         }
     }
 
     private func debugLog(_ message: String) {
+        guard settings.debug else { return }
         if let data = (message + "\n").data(using: .utf8) {
             FileHandle.standardError.write(data)
         }
+    }
+
+    private func showError(title: String, detail: String, window: NSWindow?) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = detail
+        alert.addButton(withTitle: "好")
+        if let window { alert.beginSheetModal(for: window) }
+        else { alert.runModal() }
     }
 }
