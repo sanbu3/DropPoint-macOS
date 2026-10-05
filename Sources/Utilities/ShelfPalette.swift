@@ -20,6 +20,7 @@ struct ShelfPalette {
     var edge: Color { dark ? .white.opacity(focused ? 0.2 : 0.13) : .black.opacity(focused ? 0.16 : 0.10) }
     var highlight: Color { dark ? .white.opacity(focused ? 0.22 : 0.12) : .white.opacity(focused ? 0.94 : 0.68) }
     var handle: Color { dark ? color(132, 137, 146) : color(focused ? 112 : 167, focused ? 112 : 167, focused ? 116 : 167) }
+    var activeHandle: Color { dark ? ink.opacity(0.65) : (focused ? color(88, 143, 205) : handle) }
     var selected: Color { dark ? .white.opacity(0.08) : .white.opacity(0.28) }
     var selectedEdge: Color { dark ? .white.opacity(0.09) : .black.opacity(0.07) }
     var fileType: Color { dark ? color(174, 179, 187) : color(112, 112, 118) }

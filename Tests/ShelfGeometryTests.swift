@@ -1284,6 +1284,28 @@ final class InteractionSafetyTests: XCTestCase {
                 store.isOptionClearActive = false
                 XCTAssertNil(controller.optionClearHintPanel)
                 XCTAssertFalse(hint.isVisible)
+                try await Task.sleep(for: .milliseconds(350))
+                XCTAssertTrue(store.isFocused)
+                view.layoutSubtreeIfNeeded()
+                let restingBitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+                view.cacheDisplay(in: view.bounds, to: restingBitmap)
+                let restingPNG = try XCTUnwrap(restingBitmap.representation(using: .png, properties: [:]))
+                try restingPNG.write(to: directory.appendingPathComponent("\(dark ? "dark" : "light")-\(expanded ? "expanded" : "compact")-resting.png"))
+
+                // The bubble must also point down when there is no room below the shelf.
+                window.setFrameOrigin(NSPoint(x: originalFrame.minX, y: screen.visibleFrame.minY))
+                store.isOptionClearActive = true
+                try await Task.sleep(for: .milliseconds(100))
+                let aboveHint = try XCTUnwrap(controller.optionClearHintPanel)
+                XCTAssertGreaterThanOrEqual(aboveHint.frame.minY, window.frame.maxY)
+                XCTAssertFalse(aboveHint.frame.intersects(window.frame))
+                let aboveView = try XCTUnwrap(aboveHint.contentView)
+                aboveView.layoutSubtreeIfNeeded()
+                let aboveBitmap = try XCTUnwrap(aboveView.bitmapImageRepForCachingDisplay(in: aboveView.bounds))
+                aboveView.cacheDisplay(in: aboveView.bounds, to: aboveBitmap)
+                let abovePNG = try XCTUnwrap(aboveBitmap.representation(using: .png, properties: [:]))
+                try abovePNG.write(to: directory.appendingPathComponent("\(dark ? "dark" : "light")-\(expanded ? "expanded" : "compact")-hint-above.png"))
+                store.isOptionClearActive = false
                 window.delegate = controller
                 controller.close()
                 backdrop.close()

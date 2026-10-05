@@ -160,7 +160,7 @@ struct ShelfView: View {
                         .frame(width: width * store.optionClearProgress)
                 } else {
                     Capsule()
-                        .fill(store.isDropTargeted ? palette.accent : palette.ink.opacity(0.65))
+                        .fill(store.isDropTargeted ? palette.accent : palette.activeHandle)
                         .opacity(active ? 1 : 0)
                     Capsule()
                         .fill(palette.danger)

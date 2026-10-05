@@ -3,7 +3,7 @@ import AppKit
 enum ShelfGeometry {
     static let compactSize = NSSize(width: 198, height: 207)
     static let expandedSize = NSSize(width: 432, height: 390)
-    static let optionClearHintSize = NSSize(width: 184, height: 62)
+    static let optionClearHintSize = NSSize(width: 216, height: 74)
 
     /// Prefer the handle edge; use the top edge when the shelf is docked at the bottom.
     static func optionClearHintFrame(for shelf: NSRect, in area: NSRect) -> NSRect {
