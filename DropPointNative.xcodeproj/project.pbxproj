@@ -30,6 +30,7 @@
 		9DD138E14CE1BA6072B77B20 /* ShelfAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C7ECB26F075D2FE5D60A67 /* ShelfAction.swift */; };
 		AEC152BEA65B60BFE7EDE958 /* ShelfContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE86B244679C85061AE61D2 /* ShelfContextMenu.swift */; };
 		B1B7335DF5DFECA45789D7A4 /* ExternalFileDragMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E19AE7AAB0330B4F68C5EA /* ExternalFileDragMonitor.swift */; };
+		B744857ECFAADC1F7EC32DF7 /* OptionClearHintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77921235DFE3658CABA0F2F8 /* OptionClearHintView.swift */; };
 		BDC1C452D7ABF32F69874617 /* ShelfGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEC6FD5A62755C0940C6677 /* ShelfGeometryTests.swift */; };
 		C5B43D9F33FB4B646279C085 /* ShelfActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5878A133EF3ADA9F52C44FBB /* ShelfActionService.swift */; };
 		CB6C29B72C794C35E91985D5 /* ShelfFocusRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7C759DEB962642660176DF /* ShelfFocusRing.swift */; };
@@ -74,6 +75,7 @@
 		681CA1D8258C085BF9A01AFF /* FileDropImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDropImporter.swift; sourceTree = "<group>"; };
 		6C7C759DEB962642660176DF /* ShelfFocusRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfFocusRing.swift; sourceTree = "<group>"; };
 		75149F843906BFBD419D0334 /* DropPointNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DropPointNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		77921235DFE3658CABA0F2F8 /* OptionClearHintView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionClearHintView.swift; sourceTree = "<group>"; };
 		7B49C3435F21B7E7EA4B0730 /* Cat_in_Box.svg */ = {isa = PBXFileReference; path = Cat_in_Box.svg; sourceTree = "<group>"; };
 		7CA0A93955E08FCAD91FCDFB /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		7FE86B244679C85061AE61D2 /* ShelfContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfContextMenu.swift; sourceTree = "<group>"; };
@@ -115,6 +117,7 @@
 			children = (
 				11676C7F1E7580EADC890261 /* CompactFileShelfView.swift */,
 				58C04420189B9E761585C681 /* ExpandedShelfView.swift */,
+				77921235DFE3658CABA0F2F8 /* OptionClearHintView.swift */,
 				A70CEC862665A410BACE399E /* SettingsGlassComponents.swift */,
 				8F0C0338FC41775B78A51506 /* SettingsView.swift */,
 				6C7C759DEB962642660176DF /* ShelfFocusRing.swift */,
@@ -339,6 +342,7 @@
 				6AC0AF7D2F1B80F3E0132A4B /* ImageCompressionService.swift in Sources */,
 				242FF4C03E5A443E28833862 /* InputMonitoringPermissionService.swift in Sources */,
 				E10D2DC8B0A4CCFFF10740DD /* LaunchAtLoginService.swift in Sources */,
+				B744857ECFAADC1F7EC32DF7 /* OptionClearHintView.swift in Sources */,
 				2FAD835D667303C8CEEB53D1 /* ProjectAttribution.swift in Sources */,
 				4A34E9983C3A1B053BEB9082 /* SettingsGlassComponents.swift in Sources */,
 				27217171884A3DEE8439B72A /* SettingsView.swift in Sources */,
@@ -514,7 +518,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -522,7 +526,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.1;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
@@ -551,7 +555,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -559,7 +563,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.1;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;

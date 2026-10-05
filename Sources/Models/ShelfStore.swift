@@ -10,13 +10,18 @@ final class ShelfStore {
     var isExpanded = false
     var isDropTargeted = false
     var isFocused = false
+    var isKeyboardNavigating = false
     var isHovered = false
     var isClearing = false
     var isDraggingOut = false
     var dismissGestureProgress: CGFloat = 0
     var isDismissGestureActive = false
     var isPullClearing = false
-    var isOptionClearActive = false
+    var isOptionClearActive = false {
+        didSet {
+            if oldValue != isOptionClearActive { onOptionClearPresentationChanged?() }
+        }
+    }
     var optionClearProgress: CGFloat = 0
     var keepsEmptyShelfAfterOptionClear = false
     private(set) var isClosed = false
@@ -30,6 +35,7 @@ final class ShelfStore {
     var customActions: [CustomShelfAction] = []
     var reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
+    @ObservationIgnored var onOptionClearPresentationChanged: (() -> Void)?
     @ObservationIgnored var onClose: (() -> Void)?
     @ObservationIgnored var onCollapse: (() -> Void)?
     @ObservationIgnored var onExpansionChanged: ((Bool) -> Void)?

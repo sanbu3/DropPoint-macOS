@@ -246,19 +246,6 @@ private struct ExpandedFileTile: View {
                 .padding(.top, 9)
                 .padding(.bottom, 7)
 
-                FileDragOutOverlay(
-                    store: store,
-                    itemsProvider: { store.selectedItems },
-                    dragAction: store.dragAction,
-                    onClick: selectItem,
-                    onDoubleClick: { store.performDoubleClick(on: item) },
-                    onDragBegan: store.beginInternalDrag,
-                    onDragEnded: store.finishInternalDrag,
-                    contextMenuProvider: {
-                        store.select(item, extending: false)
-                        return ShelfContextMenuFactory.make(for: store)
-                    }
-                )
             }
             .frame(maxWidth: .infinity, minHeight: 104, maxHeight: 104)
             .opacity(store.isDraggingOut && selected ? 0 : 1)
@@ -271,26 +258,25 @@ private struct ExpandedFileTile: View {
         .frame(minHeight: 112, maxHeight: 112)
         .contentShape(.rect(cornerRadius: 14, style: .continuous))
         .onHover { hovered = $0 }
-        .contextMenu { tileContextMenu }
+        .overlay {
+            FileDragOutOverlay(
+                store: store,
+                itemsProvider: { store.selectedItems },
+                dragAction: store.dragAction,
+                onClick: selectItem,
+                onDoubleClick: { store.performDoubleClick(on: item) },
+                onDragBegan: store.beginInternalDrag,
+                onDragEnded: store.finishInternalDrag,
+                contextMenuProvider: {
+                    store.select(item, extending: false)
+                    return ShelfContextMenuFactory.make(for: store)
+                }
+            )
+        }
         .help(item.name)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(item.name)
         .accessibilityValue(selected ? "已选择，\(item.typeLabel)" : item.typeLabel)
-    }
-
-    @ViewBuilder
-    private var tileContextMenu: some View {
-        Button("在 Finder 中显示") {
-            NSWorkspace.shared.activateFileViewerSelecting([item.url])
-        }
-        Button("拷贝路径") {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(item.url.path, forType: .string)
-        }
-        Divider()
-        Button("从文件架移除") {
-            store.remove(items: [item.id])
-        }
     }
 
     private var tileBackground: Color {

@@ -24,8 +24,7 @@ struct CompactFileShelfView: View {
 
             itemChip
                 .position(x: 99, y: 173)
-                .opacity(store.isOptionClearActive ? 0 : 1 - min(max((pullProgress - 0.82) / 0.18, 0), 1))
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: store.isOptionClearActive)
+                .opacity(1 - min(max((pullProgress - 0.82) / 0.18, 0), 1))
         }
         .allowsHitTesting(!store.isDismissGestureActive && !store.isPullClearing)
         .animation(

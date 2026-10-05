@@ -5,6 +5,7 @@ private struct ShelfFocusRingModifier<S: Shape>: ViewModifier {
 
     let shape: S
     let color: Color
+    let showsFocus: Bool
 
     @FocusState private var isFocused: Bool
 
@@ -16,7 +17,7 @@ private struct ShelfFocusRingModifier<S: Shape>: ViewModifier {
             .overlay {
                 shape
                     .stroke(
-                        color.opacity(isFocused && controlActiveState == .key ? 0.9 : 0),
+                        color.opacity(showsFocus && isFocused && controlActiveState == .key ? 0.9 : 0),
                         lineWidth: 2
                     )
                     .padding(-2)
@@ -26,7 +27,7 @@ private struct ShelfFocusRingModifier<S: Shape>: ViewModifier {
 }
 
 extension View {
-    func shelfFocusRing<S: Shape>(_ shape: S, color: Color) -> some View {
-        modifier(ShelfFocusRingModifier(shape: shape, color: color))
+    func shelfFocusRing<S: Shape>(_ shape: S, color: Color, showsFocus: Bool = true) -> some View {
+        modifier(ShelfFocusRingModifier(shape: shape, color: color, showsFocus: showsFocus))
     }
 }

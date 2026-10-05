@@ -1162,6 +1162,71 @@ final class OptionHoldClearGestureTests: XCTestCase {
 
 @MainActor
 final class InteractionSafetyTests: XCTestCase {
+    func testContextMenuGroupsConfiguredActionsAndDisablesEmptySelection() throws {
+        let store = ShelfStore()
+        store.items = [try XCTUnwrap(ShelfItem.make(url: URL(fileURLWithPath: #filePath)))]
+        store.enabledActions = [.mail, .reveal, .copyPaths, .open, .archive]
+        store.customActions = [CustomShelfAction(name: "测试目录", kind: .copyTo, destinationPath: "/tmp")]
+        let menu = ShelfContextMenuFactory.make(for: store)
+        XCTAssertGreaterThanOrEqual(menu.size.width, 230)
+        XCTAssertTrue(menu.items.filter { !$0.isSeparatorItem }.allSatisfy { $0.image != nil })
+        XCTAssertEqual(menu.minimumWidth, 230)
+        XCTAssertEqual(menu.font.pointSize, 14)
+        XCTAssertEqual(menu.items.map(\.title), [
+            "在 Finder 中显示", "打开文件", "快速查看", "", "邮件", "", "复制路径", "",
+            "压缩为 ZIP", "", "自定义操作", "", "清空文件架", "隐藏文件架"
+        ])
+        let represented = menu.items.compactMap { $0.representedObject as? String }
+        XCTAssertEqual(Set(represented), Set(store.enabledActions.map(\.rawValue)))
+        XCTAssertEqual(represented.count, store.enabledActions.count)
+        XCTAssertTrue(menu.items.filter { !$0.isSeparatorItem && $0.submenu == nil }.allSatisfy(\.isEnabled))
+        XCTAssertEqual(menu.items.first { $0.submenu != nil }?.submenu?.minimumWidth, 230)
+
+        store.isExpanded = true // No selected files: destructive/file actions must be unavailable.
+        let emptySelectionMenu = ShelfContextMenuFactory.make(for: store)
+        XCTAssertFalse(try XCTUnwrap(emptySelectionMenu.items.first { $0.title == "快速查看" }).isEnabled)
+        XCTAssertTrue(try XCTUnwrap(emptySelectionMenu.items.first { $0.title == "清空文件架" }).isEnabled)
+        XCTAssertTrue(emptySelectionMenu.items.filter { $0.representedObject != nil }.allSatisfy { !$0.isEnabled })
+        store.instantActionsEnabled = false
+        store.isExpanded = false
+        XCTAssertEqual(ShelfContextMenuFactory.make(for: store).items.map(\.title), ["清空文件架", "隐藏文件架"])
+    }
+
+    func testHintStaysOutsideShelfAtScreenEdgesAndOnOffsetDisplays() {
+        for area in [NSRect(x: 0, y: 25, width: 1440, height: 875), NSRect(x: -1920, y: -120, width: 1920, height: 1080)] {
+            for size in [ShelfGeometry.compactSize, ShelfGeometry.expandedSize] {
+                for position in [ShelfPosition.topLeft, .topRight, .bottomLeft, .bottomRight, .center] {
+                    let shelf = NSRect(origin: ShelfGeometry.origin(for: position, in: area, cursor: .zero, size: size), size: size)
+                    let hint = ShelfGeometry.optionClearHintFrame(for: shelf, in: area)
+                    XCTAssertTrue(area.contains(hint))
+                    XCTAssertFalse(shelf.intersects(hint))
+                    if shelf.minY == area.minY { XCTAssertEqual(hint.minY, shelf.maxY) }
+                    else { XCTAssertEqual(hint.maxY, shelf.minY) }
+                }
+            }
+        }
+    }
+
+    func testActivationDoesNotEnableKeyboardFocusDecoration() throws {
+        let store = ShelfStore()
+        let controller = ShelfWindowController(store: store, alwaysOnTop: false)
+        controller.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
+        XCTAssertFalse(store.isKeyboardNavigating)
+        let tab = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                               windowNumber: 0, context: nil, characters: "\t",
+                                               charactersIgnoringModifiers: "\t", isARepeat: false, keyCode: 48))
+        let activationShortcut = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .shift, timestamp: 0,
+                                                              windowNumber: 0, context: nil, characters: "\t",
+                                                              charactersIgnoringModifiers: "\t", isARepeat: false, keyCode: 48))
+        controller.updateKeyboardNavigation(for: activationShortcut)
+        XCTAssertFalse(store.isKeyboardNavigating)
+        controller.updateKeyboardNavigation(for: tab)
+        XCTAssertTrue(store.isKeyboardNavigating)
+        controller.windowDidResignKey(Notification(name: NSWindow.didResignKeyNotification))
+        XCTAssertFalse(store.isKeyboardNavigating)
+        controller.close()
+    }
+
     func testOptionHoldPresentationInBothAppearancesAndShelfModes() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("DropPoint-OptionClear-Visuals")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -1173,10 +1238,15 @@ final class InteractionSafetyTests: XCTestCase {
                 let controller = ShelfWindowController(store: store, alwaysOnTop: false)
                 store.add(urls: [URL(fileURLWithPath: #filePath), URL(fileURLWithPath: #filePath).deletingLastPathComponent()])
                 store.isExpanded = expanded
-                if expanded { controller.setExpanded(true) }
                 let window = try XCTUnwrap(controller.window)
+                if expanded {
+                    window.setFrame(NSRect(origin: .zero, size: ShelfGeometry.expandedSize(itemCount: store.items.count)), display: true)
+                }
                 window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-                let backdrop = NSWindow(contentRect: window.frame.insetBy(dx: -24, dy: -24), styleMask: [.borderless], backing: .buffered, defer: false)
+                let screen = try XCTUnwrap(NSScreen.screens.first)
+                window.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - window.frame.width / 2, y: screen.visibleFrame.midY - window.frame.height / 2))
+                let originalFrame = window.frame
+                let backdrop = NSWindow(contentRect: window.frame.insetBy(dx: -24, dy: -80), styleMask: [.borderless], backing: .buffered, defer: false)
                 backdrop.backgroundColor = dark ? .black : .white
                 backdrop.isReleasedWhenClosed = false
                 backdrop.orderFront(nil)
@@ -1197,8 +1267,23 @@ final class InteractionSafetyTests: XCTestCase {
                 view.cacheDisplay(in: view.bounds, to: bitmap)
                 let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
                 try png.write(to: directory.appendingPathComponent("\(dark ? "dark" : "light")-\(expanded ? "expanded" : "compact").png"))
+                let hint = try XCTUnwrap(controller.optionClearHintPanel)
+                XCTAssertEqual(window.frame, originalFrame)
+                XCTAssertFalse(window.frame.intersects(hint.frame))
+                XCTAssertFalse(hint.canBecomeKey)
+                XCTAssertTrue(hint.ignoresMouseEvents)
+                XCTAssertFalse(hint.hasShadow)
+                let hintView = try XCTUnwrap(hint.contentView)
+                hintView.layoutSubtreeIfNeeded()
+                let hintBitmap = try XCTUnwrap(hintView.bitmapImageRepForCachingDisplay(in: hintView.bounds))
+                hintView.cacheDisplay(in: hintView.bounds, to: hintBitmap)
+                let hintPNG = try XCTUnwrap(hintBitmap.representation(using: .png, properties: [:]))
+                try hintPNG.write(to: directory.appendingPathComponent("\(dark ? "dark" : "light")-\(expanded ? "expanded" : "compact")-hint.png"))
                 XCTAssertFalse(window.hasShadow)
                 XCTAssertFalse(window.isOpaque)
+                store.isOptionClearActive = false
+                XCTAssertNil(controller.optionClearHintPanel)
+                XCTAssertFalse(hint.isVisible)
                 window.delegate = controller
                 controller.close()
                 backdrop.close()

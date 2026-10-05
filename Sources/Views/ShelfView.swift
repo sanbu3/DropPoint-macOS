@@ -18,8 +18,6 @@ struct ShelfView: View {
             shelfBackground
             if store.isExpanded {
                 ExpandedShelfView(store: store, palette: palette)
-                    .opacity(store.isOptionClearActive ? 0.45 : 1)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: store.isOptionClearActive)
             } else {
                 compactContent
             }
@@ -129,7 +127,8 @@ struct ShelfView: View {
             ShelfControlButton(
                 systemName: "xmark",
                 label: "关闭文件架",
-                palette: palette
+                palette: palette,
+                showsKeyboardFocus: store.isKeyboardNavigating
             ) {
                 store.requestClose(commandPressed: false)
             }
@@ -153,15 +152,6 @@ struct ShelfView: View {
 
         return VStack(spacing: 5) {
             Spacer()
-            if holding {
-                Text("继续按住 ⌥ · 1.2 秒清空")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(palette.danger)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(palette.surface, in: Capsule())
-                    .accessibilityLabel("继续按住 Option，满一点二秒清空文件架，松开取消")
-            }
             ZStack(alignment: .leading) {
                 Capsule().fill(palette.handle)
                 if holding {
@@ -339,6 +329,7 @@ private struct ShelfControlButton: View {
     let label: String
     let palette: ShelfPalette
     var danger = false
+    var showsKeyboardFocus = true
     let action: () -> Void
 
     @State private var hovered = false
@@ -352,7 +343,7 @@ private struct ShelfControlButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .shelfFocusRing(Circle(), color: palette.accent)
+        .shelfFocusRing(Circle(), color: palette.accent, showsFocus: showsKeyboardFocus)
         .background(hovered ? palette.controlHover : .clear, in: Circle())
         .opacity(hovered ? 0.95 : (danger ? 0.78 : 0.56))
         .onHover { hovered = $0 }

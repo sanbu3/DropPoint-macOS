@@ -24,6 +24,11 @@ final class ShelfPanel: NSPanel {
     }
 }
 
+private final class ShelfHintPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
 @MainActor
 final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     private enum OutDisposition {
@@ -52,6 +57,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     private var didTriggerPullDownDismiss = false
     private var optionGesture = OptionHoldClearGesture()
     private var optionHoldTimer: Timer?
+    private(set) var optionClearHintPanel: NSPanel?
 
     init(store: ShelfStore, alwaysOnTop: Bool) {
         self.store = store
@@ -75,6 +81,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         panel.title = "DropPoint"
 
         let hostingView = ShelfDropHostingView(store: store)
+        hostingView.focusRingType = .none
         hostingView.sizingOptions = []
         hostingView.autoresizingMask = [.width, .height]
         hostingView.frame = NSRect(origin: .zero, size: size)
@@ -89,7 +96,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             self.onInteraction?(self)
         }
         panel.onGestureEvent = { [weak self] event in
+            self?.updateKeyboardNavigation(for: event)
             self?.handleOptionGestureEvent(event)
+        }
+        store.onOptionClearPresentationChanged = { [weak self] in
+            self?.updateOptionClearHint()
         }
         panel.onPrecisionScroll = { [weak self] event in
             self?.handlePrecisionScroll(event) ?? false
@@ -229,6 +240,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
+        store.isKeyboardNavigating = false
         store.isFocused = true
     }
 
@@ -236,6 +248,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         cancelOptionHold()
         resetPullDownGesture()
         store.isFocused = false
+        store.isKeyboardNavigating = false
         if store.autoCollapseExpanded, store.isExpanded,
            isPreviewActive?() != true {
             store.toggleExpanded()
@@ -243,6 +256,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowDidMove(_ notification: Notification) {
+        updateOptionClearHint()
         guard !isAnimatingOut, !isProgrammaticallyMoving else { return }
         snapWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
@@ -253,8 +267,17 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.16, execute: item)
     }
 
+    func windowDidResize(_ notification: Notification) {
+        updateOptionClearHint()
+    }
+
+    func windowDidChangeScreen(_ notification: Notification) {
+        updateOptionClearHint()
+    }
+
     func windowWillClose(_ notification: Notification) {
         cancelOptionHold()
+        store.onOptionClearPresentationChanged = nil
         store.cancelPendingWork()
         snapWorkItem?.cancel()
         onWillDismiss?(self)
@@ -378,6 +401,61 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
         guard modifiers == .command else { return false }
         return event.keyCode == 13 || event.charactersIgnoringModifiers?.lowercased() == "w"
+    }
+
+    func updateKeyboardNavigation(for event: NSEvent) {
+        switch event.type {
+        case .keyDown where event.keyCode == 48:
+            // Shift-Tab is the global shelf activation shortcut, not a request
+            // to highlight the first control in a newly activated shelf.
+            if event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {
+                store.isKeyboardNavigating = true
+            }
+        case .leftMouseDown, .rightMouseDown:
+            store.isKeyboardNavigating = false
+        default:
+            break
+        }
+    }
+
+    private func updateOptionClearHint() {
+        guard store.isOptionClearActive, let window, window.isVisible,
+              let screen = window.screen ?? NSScreen.screens.first else {
+            if let hint = optionClearHintPanel {
+                window?.removeChildWindow(hint)
+                hint.orderOut(nil)
+                optionClearHintPanel = nil
+            }
+            return
+        }
+        let frame = ShelfGeometry.optionClearHintFrame(for: window.frame, in: screen.visibleFrame)
+        let above = frame.minY >= window.frame.maxY
+        let hint: NSPanel
+        if let existing = optionClearHintPanel {
+            hint = existing
+        } else {
+            hint = ShelfHintPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            hint.backgroundColor = .clear
+            hint.isOpaque = false
+            hint.hasShadow = false
+            hint.ignoresMouseEvents = true
+            hint.hidesOnDeactivate = false
+            hint.isReleasedWhenClosed = false
+            hint.animationBehavior = .none
+            hint.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            let hosting = NSHostingView(rootView: OptionClearHintView(attachedAbove: above))
+            hosting.sizingOptions = []
+            hosting.focusRingType = .none
+            hint.contentView = hosting
+            optionClearHintPanel = hint
+            window.addChildWindow(hint, ordered: .above)
+        }
+        hint.appearance = window.effectiveAppearance
+        if let hosting = hint.contentView as? NSHostingView<OptionClearHintView> {
+            hosting.rootView = OptionClearHintView(attachedAbove: above)
+        }
+        hint.setFrame(frame, display: true)
+        hint.orderFront(nil)
     }
 
     private func handleOptionGestureEvent(_ event: NSEvent) {
