@@ -2,7 +2,44 @@ import AppKit
 import SwiftUI
 import WebKit
 
-struct AnimatedSVGView: NSViewRepresentable {
+/// macOS 27's WebKit mouse tracker can re-enter SwiftUI hit testing and crash
+/// in NSViewResponder's executor lookup. Keep decorative web views out of the
+/// shelf on that OS until a framework fix is verified; render the same artwork
+/// through AppKit instead. Earlier systems retain the SVG timeline.
+struct AnimatedSVGView: View {
+    let name: String
+    var animationEnabled = true
+    var pauseAfterCycle = false
+    var randomRestart = false
+    var onReady: (() -> Void)?
+
+    private static let stillImages: [String: NSImage] = {
+        var images: [String: NSImage] = [:]
+        for name in ["Cat_in_Box", "Empty Box"] {
+            if let url = Bundle.main.url(forResource: name, withExtension: "svg"),
+               let image = NSImage(contentsOf: url) { images[name] = image }
+        }
+        return images
+    }()
+
+    var body: some View {
+        if #available(macOS 27, *) {
+            Group {
+                if let image = Self.stillImages[name] {
+                    Image(nsImage: image).resizable().scaledToFit()
+                }
+            }
+            .allowsHitTesting(false)
+            .onAppear { onReady?() }
+        } else {
+            WebKitSVGView(name: name, animationEnabled: animationEnabled,
+                          pauseAfterCycle: pauseAfterCycle, randomRestart: randomRestart,
+                          onReady: onReady)
+        }
+    }
+}
+
+private struct WebKitSVGView: NSViewRepresentable {
     let name: String
     var animationEnabled = true
     var pauseAfterCycle = false

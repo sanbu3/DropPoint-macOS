@@ -53,3 +53,14 @@
 长按指引调整为带圆润尖角的外侧气泡，主文案“继续按住 ⌥”与“1.2 秒”标签分开，辅文案说明取消和保留空架。气泡为 216 × 74 点，保持无外部阴影、不抢焦点及屏幕边缘避让。浅色聚焦手柄使用低饱和蓝色（RGB 88/143/205），清空时仍以红色填充进度。
 
 本轮相关 XCTest 11 项通过；原生固定状态渲染检查深浅色、紧凑/展开、气泡朝上/朝下及聚焦横条。Universal Release 构建通过。
+
+
+## Codex 图片拖入崩溃（2026-10-06 / 1.5.4）
+
+本机两份 1.5.3 崩溃报告均为主线程 `EXC_BAD_ACCESS / SIGBUS`，栈经过 WebKit `WKMouseTrackingObserver`、SwiftUI `NSHostingView.hitTest` 和 `NSViewResponder.platformCurrentEvent` 的 executor 检查，错误地址落在 SwiftUICore 只读区。日志支持鼠标命中检测的框架兼容性路径这一判断，不能据此断言 Apple 内部的具体缺陷；故障栈未进入图片编码或写盘。此类内存访问崩溃无法用 Swift `do/catch` 捕获。
+
+macOS 27 及后续版本的空架和拖入插图改用 AppKit 加载同一 SVG 的静态画面，移除文件架中的装饰性 WKWebView，避免其鼠标追踪回调进入问题路径；较早系统保留原 SVG 动画。原生拖入、拖出和移动区域优先由 AppKit 命中检测，使用实际 bounds 与可见区域共同约束，区域之外的关闭等控件保留 SwiftUI 路由。装饰插图显式禁用命中检测。
+
+新增集成测试反复切换空架与拖入状态，检查 macOS 27 上不存在装饰性 WebKit 视图、原生插图可加载、中心命中原生拖入区域、关闭按钮未被接管，并通过该区域导入 TIFF 后验证 PNG 文件和文件架内容。原版本在程序化测试中没有稳定复现 SIGBUS，因此此测试验证规避措施与图片导入，不能等同于真实 Codex 鼠标拖动的崩溃复现。自动化工具禁止操作 Codex 自身窗口，真实“从 Codex 拖出图片”仍需用户重试。
+
+最终全量 XCTest 80 项通过，0 失败；Universal Release（x86_64 / arm64）构建通过，浮动 UI 审查 0 error / 0 review item。已覆盖安装 1.5.4 / build 8 并严格验证本地签名；实际界面检查同一插图正常显示且不存在 WebKit HTML 元素、PNG 路径粘贴加入成功、右上角关闭按钮可关闭文件架、设置显示 1.5.4。检查完成后移除旧安装副本，仅保留最新版。验证日志保存在 `.build/Latest/Verification`。

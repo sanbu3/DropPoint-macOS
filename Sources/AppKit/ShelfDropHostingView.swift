@@ -32,6 +32,36 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let localPoint = convert(point, from: superview)
+        guard bounds.contains(localPoint) else { return nil }
+        // WebKit mouse tracking asks the hosting view to hit-test during a drag.
+        // On macOS 27 this can crash inside SwiftUI's NSViewResponder executor
+        // lookup. Our AppKit drop areas already own these interactions; resolve
+        // them without entering SwiftUI's responder graph. Keep normal SwiftUI
+        // hit testing for controls outside the native drop areas.
+        if let destination = nativeDropDestination(in: self, at: localPoint) {
+            return destination
+        }
+        return super.hitTest(point)
+    }
+
+    private func nativeDropDestination(in view: NSView, at point: NSPoint) -> DragPassThroughNSView? {
+        guard !view.isHidden, view.alphaValue > 0 else { return nil }
+        if let destination = view as? DragPassThroughNSView,
+           destination.dropStore === store,
+           destination.bounds.contains(destination.convert(point, from: self)),
+           destination.visibleRect.contains(destination.convert(point, from: self)) {
+            return destination
+        }
+        // Decorative web content is never a pointer/drop destination.
+        if view is NonInteractiveSVGWebView { return nil }
+        for child in view.subviews.reversed() {
+            if let destination = nativeDropDestination(in: child, at: point) { return destination }
+        }
+        return nil
+    }
+
     override var mouseDownCanMoveWindow: Bool { true }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

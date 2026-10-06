@@ -300,6 +300,7 @@ private struct EmptyShelfView: View {
                         .allowsHitTesting(false)
                 }
                 AnimatedSVGView(name: "Cat_in_Box", animationEnabled: animationEnabled, pauseAfterCycle: true, randomRestart: true, onReady: { animationReady = true })
+                    .allowsHitTesting(false)
                     .frame(width: 112, height: 112)
                     .opacity(animationReady ? 1 : 0)
                 DragPassThroughOverlay(store: store)
@@ -317,6 +318,7 @@ private struct DropGuideView: View {
     var body: some View {
         ZStack {
             AnimatedSVGView(name: "Empty Box", animationEnabled: animationEnabled, pauseAfterCycle: true)
+                .allowsHitTesting(false)
                 .frame(width: 152, height: 152)
             DragPassThroughOverlay(store: store)
                 .frame(width: 152, height: 152)

@@ -1392,3 +1392,58 @@ final class InteractionSafetyTests: XCTestCase {
         await fulfillment(of: [delivered], timeout: 1.7)
     }
 }
+
+@MainActor
+final class ShelfDropHitTestingTests: XCTestCase {
+    func testImageDropHitsNativeDestinationAcrossAnimatedShelfStates() async throws {
+        for name in ["Cat_in_Box", "Empty Box"] {
+            let url = try XCTUnwrap(Bundle.main.url(forResource: name, withExtension: "svg"))
+            XCTAssertNotNil(NSImage(contentsOf: url), "native fallback artwork must be available")
+        }
+        let store = ShelfStore()
+        store.reduceMotion = true
+        let controller = ShelfWindowController(store: store, alwaysOnTop: false)
+        let window = try XCTUnwrap(controller.window)
+        defer { controller.close() }
+        controller.showExistingAnimated(activating: true)
+        let hosting = try XCTUnwrap(window.contentView)
+        var destination: DragPassThroughNSView?
+        for targeted in [false, true, false, true] {
+            store.updateDropTargeted(targeted)
+            try await Task.sleep(for: .milliseconds(300))
+            hosting.layoutSubtreeIfNeeded()
+            if #available(macOS 27, *) {
+                func containsWebView(_ view: NSView) -> Bool {
+                    view is NonInteractiveSVGWebView || view.subviews.contains(where: containsWebView)
+                }
+                XCTAssertFalse(containsWebView(hosting), "the crashing WebKit mouse tracker must be absent")
+            }
+            // Decorative artwork must not own pointer/drop routing.
+            let hit = hosting.hitTest(NSPoint(x: 99, y: 105))
+            destination = try XCTUnwrap(hit as? DragPassThroughNSView)
+        }
+
+        let closeLocation = NSPoint(x: hosting.bounds.width - 21,
+                                    y: hosting.isFlipped ? 21 : hosting.bounds.height - 21)
+        let closeHit = try XCTUnwrap(hosting.hitTest(hosting.convert(closeLocation, to: hosting.superview)))
+        XCTAssertFalse(closeHit is DragPassThroughNSView, "close control must retain SwiftUI pointer routing")
+
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let image = NSImage(size: NSSize(width: 24, height: 24))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 24, height: 24).fill()
+        image.unlockFocus()
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setData(try XCTUnwrap(image.tiffRepresentation), forType: .tiff))
+        let imported = expectation(description: "image reaches shelf through hit-tested destination")
+        store.onItemCountChanged = { if $0 == 1 { imported.fulfill() } }
+        XCTAssertTrue(try XCTUnwrap(destination).acceptExternalPasteboard(pasteboard))
+        await fulfillment(of: [imported], timeout: 5)
+        let item = try XCTUnwrap(store.items.first)
+        defer { try? FileManager.default.removeItem(at: item.url.deletingLastPathComponent()) }
+        XCTAssertEqual(item.url.pathExtension, "png")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: item.url.path))
+    }
+}
