@@ -35,7 +35,7 @@ private enum SettingsPage: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .activation: "唤出文件架与窗口位置"
+        case .activation: "唤出方式、截图与权限"
         case .interaction: "默认行为与窗口操作"
         case .general: "外观、启动与生命周期"
         case .actions: "服务与系统集成"
@@ -48,6 +48,8 @@ private enum SettingsPage: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     let settings: AppSettings
     let inputMonitoringPermission: InputMonitoringPermissionService
+    let screenRecordingPermission: ScreenRecordingPermissionService
+    let onShowPermissionGuide: () -> Void
     let onDismiss: () -> Void
 
     @State private var draft: SettingsDraft
@@ -59,10 +61,14 @@ struct SettingsView: View {
     init(
         settings: AppSettings,
         inputMonitoringPermission: InputMonitoringPermissionService,
+        screenRecordingPermission: ScreenRecordingPermissionService,
+        onShowPermissionGuide: @escaping () -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.settings = settings
         self.inputMonitoringPermission = inputMonitoringPermission
+        self.screenRecordingPermission = screenRecordingPermission
+        self.onShowPermissionGuide = onShowPermissionGuide
         self.onDismiss = onDismiss
         _draft = State(initialValue: SettingsDraft(settings))
     }
@@ -94,6 +100,7 @@ struct SettingsView: View {
             .padding(.trailing, 14)
         }
         .frame(minWidth: 820, minHeight: 560)
+        .focusEffectDisabled()
         .onAppear { installKeyMonitor() }
         .onDisappear { removeKeyMonitor() }
         .onChange(of: draft) { settings.apply(draft) }
@@ -158,6 +165,7 @@ struct SettingsView: View {
                     .contentShape(.rect(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
+                .focusEffectDisabled()
                 .help(page.title)
             }
             }
@@ -278,9 +286,30 @@ struct SettingsView: View {
                     title: inputMonitoringPermission.title,
                     detail: inputMonitoringPermission.detail
                 ) {
-                    Button(inputMonitoringPermission.buttonTitle) {
-                        inputMonitoringPermission.performPrimaryAction()
+                    HStack(spacing: 8) {
+                        Button("权限引导…") {
+                            onShowPermissionGuide()
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        Button(inputMonitoringPermission.buttonTitle) {
+                            inputMonitoringPermission.performPrimaryAction()
+                        }
+                        .controlSize(.small)
                     }
+                }
+            }
+
+            DropPointSettingsCard {
+                settingRow(
+                    icon: screenRecordingIcon,
+                    title: screenRecordingPermission.title,
+                    detail: screenRecordingPermission.detail
+                ) {
+                    Button(screenRecordingPermission.buttonTitle) {
+                        screenRecordingPermission.performPrimaryAction()
+                    }
+                    .controlSize(.small)
                 }
             }
 
@@ -358,6 +387,15 @@ struct SettingsView: View {
                 VStack(spacing: 0) {
                     toggleSetting("自动关闭详细窗口", detail: "文件架失去焦点时自动收起详细列表。", icon: "rectangle.compress.vertical", value: $draft.autoCollapseExpanded)
                     Divider().padding(.leading, 54)
+                    toggleSetting("显示快捷操作栏", detail: "在展开的文件架中显示常用操作按钮。", icon: "bolt.horizontal", value: $draft.showQuickActionBar)
+                    Divider().padding(.leading, 54)
+                    toggleSetting(
+                        "双 Command 截图",
+                        detail: "同时按下左右 Command，截取光标下最近的窗口并飞入文件架。需要屏幕录制权限。",
+                        icon: "camera.viewfinder",
+                        value: $draft.doubleCommandScreenshotEnabled
+                    )
+                    Divider().padding(.leading, 54)
                     toggleSetting("窗口显示时获取焦点", detail: "文件架默认不抢焦点；启用后将成为活动窗口。", icon: "scope", value: $draft.focusShelfOnShow)
                     Divider().padding(.leading, 54)
                     toggleSetting(
@@ -429,7 +467,7 @@ struct SettingsView: View {
 
             DropPointSettingsCard {
                 VStack(spacing: 0) {
-                    toggleSetting("启动时新建文件架", detail: "每次启动 DropPoint 时显示一个空文件架。", icon: "plus.rectangle.on.rectangle", value: $draft.spawnOnLaunch)
+                    toggleSetting("启动时新建浮动文件架", detail: "每次启动 DropPoint 时额外显示一个空文件架。", icon: "plus.rectangle.on.rectangle", value: $draft.spawnOnLaunch)
                     Divider().padding(.leading, 54)
                     toggleSetting("始终置顶", detail: "让文件架保持在普通应用窗口上方。", icon: "pin.fill", value: $draft.alwaysOnTop)
                     Divider().padding(.leading, 54)
@@ -662,6 +700,7 @@ struct SettingsView: View {
             }
             Spacer(minLength: 16)
             control()
+                .focusEffectDisabled()
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 54)
@@ -688,6 +727,7 @@ struct SettingsView: View {
         settingRow(icon: icon, title: title, detail: detail) {
             Slider(value: value, in: range, step: 1)
                 .frame(width: 170)
+                .focusEffectDisabled()
         }
     }
 
@@ -699,6 +739,7 @@ struct SettingsView: View {
         }
         .labelsHidden()
         .fixedSize()
+        .focusEffectDisabled()
     }
 
     private func watchedFolderRow(_ path: String) -> some View {
@@ -808,6 +849,14 @@ struct SettingsView: View {
     private var permissionIcon: String {
         switch inputMonitoringPermission.state {
         case .notGranted: "hand.raised.fill"
+        case .requiresRelaunch: "arrow.clockwise.circle.fill"
+        case .active: "checkmark.shield.fill"
+        }
+    }
+
+    private var screenRecordingIcon: String {
+        switch screenRecordingPermission.state {
+        case .notGranted: "rectangle.dashed.badge.record"
         case .requiresRelaunch: "arrow.clockwise.circle.fill"
         case .active: "checkmark.shield.fill"
         }

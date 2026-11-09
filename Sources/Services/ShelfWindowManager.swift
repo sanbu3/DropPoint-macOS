@@ -5,12 +5,18 @@ import SwiftUI
 @MainActor
 private final class QuickLookPreviewController: NSObject, @preconcurrency QLPreviewPanelDataSource {
     private var urls: [URL] = []
-    private weak var owner: ShelfWindowController?
+    private weak var owner: AnyObject?
+    private var ownerWindowProvider: (() -> NSWindow?)?
     private var keyMonitor: Any?
 
-    func show(_ url: URL, for owner: ShelfWindowController) {
+    func show(
+        _ url: URL,
+        for owner: AnyObject,
+        restoring ownerWindow: @escaping () -> NSWindow?
+    ) {
         guard url.isFileURL, let panel = QLPreviewPanel.shared() else { return }
         self.owner = owner
+        ownerWindowProvider = ownerWindow
         urls = [url]
         panel.dataSource = self
         panel.reloadData()
@@ -20,7 +26,7 @@ private final class QuickLookPreviewController: NSObject, @preconcurrency QLPrev
         panel.makeKeyAndOrderFront(nil)
     }
 
-    func isShowing(for owner: ShelfWindowController) -> Bool {
+    func isShowing(for owner: AnyObject) -> Bool {
         guard self.owner === owner else { return false }
         guard QLPreviewPanel.sharedPreviewPanelExists(),
               QLPreviewPanel.shared()?.isVisible == true else {
@@ -30,7 +36,7 @@ private final class QuickLookPreviewController: NSObject, @preconcurrency QLPrev
         return true
     }
 
-    func close(ifOwnedBy owner: ShelfWindowController) {
+    func close(ifOwnedBy owner: AnyObject) {
         guard self.owner === owner else { return }
         if QLPreviewPanel.sharedPreviewPanelExists() {
             QLPreviewPanel.shared()?.orderOut(nil)
@@ -60,7 +66,7 @@ private final class QuickLookPreviewController: NSObject, @preconcurrency QLPrev
                   event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty
             else { return event }
 
-            let ownerWindow = self.owner?.window
+            let ownerWindow = self.ownerWindowProvider?()
             if let owner = self.owner {
                 self.close(ifOwnedBy: owner)
             }
@@ -71,6 +77,7 @@ private final class QuickLookPreviewController: NSObject, @preconcurrency QLPrev
 
     private func resetOwnership() {
         owner = nil
+        ownerWindowProvider = nil
         urls.removeAll()
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
@@ -119,33 +126,40 @@ struct ShelfHoverPasteTargetState {
 final class ShelfWindowManager {
     let settings: AppSettings
     let inputMonitoringPermission: InputMonitoringPermissionService
+    let screenRecordingPermission: ScreenRecordingPermissionService
     var onInternalDragActivityChanged: ((Bool) -> Void)?
     var onPasteHoverAvailabilityChanged: ((Bool) -> Void)?
     private(set) var internalDragCount = 0
 
     private var shelves: [ShelfWindowController] = []
     private var settingsWindowController: NSWindowController?
+    private var permissionGuideController: PermissionGuideWindowController?
     private let quickLookPreviewController = QuickLookPreviewController()
     private var emptyAutoCloseTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var idleSnapTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var postDropSnapTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var transientIDs = Set<ObjectIdentifier>()
     private var shakeGeneratedIDs = Set<ObjectIdentifier>()
-    private var closedHistory: [[URL]] = []
     private var pasteTargetState = ShelfHoverPasteTargetState()
+    private var isCapturingScreenshot = false
 
     init(
         settings: AppSettings,
-        inputMonitoringPermission: InputMonitoringPermissionService
+        inputMonitoringPermission: InputMonitoringPermissionService,
+        screenRecordingPermission: ScreenRecordingPermissionService
     ) {
         self.settings = settings
         self.inputMonitoringPermission = inputMonitoringPermission
+        self.screenRecordingPermission = screenRecordingPermission
+        inputMonitoringPermission.onShowGuide = { [weak self] in self?.showPermissionGuide() }
+        inputMonitoringPermission.onWillRelaunch = { [weak self] in self?.preserveShelvesForRelaunch() }
+        screenRecordingPermission.onWillRelaunch = { [weak self] in self?.preserveShelvesForRelaunch() }
         debugLog("SNAP: ShelfWindowManager init")
     }
 
     var hasShelves: Bool { !shelves.isEmpty }
     var isInternalDragActive: Bool { internalDragCount > 0 }
-    var canRestoreLastClosedShelf: Bool { !closedHistory.isEmpty }
+    var canRestoreLastClosedShelf: Bool { !settings.recentShelves.isEmpty }
 
     @discardableResult
     func spawnFromShake() -> ShelfWindowController? {
@@ -186,13 +200,16 @@ final class ShelfWindowManager {
         urls: [URL] = [],
         forcePosition: ShelfPosition? = nil,
         transient: Bool = false,
-        source: ShelfCreationSource = .manual
+        source: ShelfCreationSource = .manual,
+        name: String = "",
+        tint: ShelfTint = .blue,
+        pinnedShelfID: UUID? = nil
     ) -> ShelfWindowController {
         if transient {
             closeEmptyShelves()
         }
         let resolvedPosition = forcePosition ?? source.position(default: settings.shelfPosition)
-        let controller = makeShelf()
+        let controller = makeShelf(name: name, tint: tint, pinnedShelfID: pinnedShelfID)
         let screen = targetScreen(for: resolvedPosition)
         let placementArea: NSRect
         switch source {
@@ -311,11 +328,13 @@ final class ShelfWindowManager {
         }
     }
 
-    func closeAll() { shelves.forEach { $0.closeAnimated() } }
+    func closeAll() {
+        shelves.forEach { $0.closeAnimated() }
+    }
 
     func restoreLastClosedShelf() {
-        guard let urls = closedHistory.popLast(), !urls.isEmpty else { return }
-        spawn(urls: urls)
+        guard let recent = settings.recentShelves.first else { return }
+        restore(recent: recent)
     }
 
     func pasteClipboardIntoHoveredShelf() {
@@ -356,6 +375,249 @@ final class ShelfWindowManager {
         shelves.forEach(scheduleIdleSnap)
     }
 
+    // MARK: - Pinned and recent shelves
+
+    private func togglePin(_ controller: ShelfWindowController) {
+        let store = controller.store
+        if let pinnedID = store.pinnedShelfID {
+            store.pinnedShelfID = nil
+            settings.pinnedShelves.removeAll { $0.id == pinnedID }
+        } else {
+            guard !store.items.isEmpty else {
+                NSSound.beep()
+                return
+            }
+            let pin = PinnedShelf(
+                name: store.displayTitle,
+                tint: store.tint,
+                paths: store.items.map(\.url.path)
+            )
+            store.pinnedShelfID = pin.id
+            settings.pinnedShelves.insert(pin, at: 0)
+        }
+        controller.syncWindowTitle()
+    }
+
+    private func syncPinnedShelf(_ controller: ShelfWindowController) {
+        guard let pinnedID = controller.store.pinnedShelfID else { return }
+        if controller.store.items.isEmpty {
+            controller.store.pinnedShelfID = nil
+            settings.pinnedShelves.removeAll { $0.id == pinnedID }
+            controller.syncWindowTitle()
+                return
+        }
+        guard let index = settings.pinnedShelves.firstIndex(where: { $0.id == pinnedID }) else { return }
+        var pinned = settings.pinnedShelves
+        pinned[index].name = controller.store.displayTitle
+        pinned[index].tint = controller.store.tint
+        pinned[index].paths = controller.store.items.map(\.url.path)
+        settings.pinnedShelves = pinned
+    }
+
+    func restorePinnedShelf(_ shelf: PinnedShelf) {
+        restore(pinned: shelf)
+    }
+
+    func restoreRecentShelf(_ shelf: RecentShelf) {
+        restore(recent: shelf)
+    }
+
+    private func restore(pinned: PinnedShelf) {
+        let urls = existingURLs(for: pinned.paths)
+        guard !urls.isEmpty else {
+            showError(
+                title: "无法打开固定文件架",
+                detail: "固定记录中的文件已被移动或删除。你可以删除这条固定记录后重新固定。",
+                window: NSApp.keyWindow
+            )
+            return
+        }
+        if urls.count != pinned.paths.count {
+            var updated = pinned
+            updated.paths = urls.map(\.path)
+            if let index = settings.pinnedShelves.firstIndex(where: { $0.id == pinned.id }) {
+                var pinnedShelves = settings.pinnedShelves
+                pinnedShelves[index] = updated
+                settings.pinnedShelves = pinnedShelves
+            }
+        }
+        spawn(
+            urls: urls,
+            name: pinned.displayName,
+            tint: pinned.tint,
+            pinnedShelfID: pinned.id
+        )
+    }
+
+    func clearAllPinnedShelves() {
+        settings.pinnedShelves = []
+        for controller in shelves where controller.store.pinnedShelfID != nil {
+            controller.store.pinnedShelfID = nil
+            controller.syncWindowTitle()
+        }
+    }
+
+    func clearRecentShelves() {
+        settings.recentShelves = []
+    }
+
+    private func deletePinnedShelf(_ pinned: PinnedShelf) {
+        settings.pinnedShelves.removeAll { $0.id == pinned.id }
+        for controller in shelves where controller.store.pinnedShelfID == pinned.id {
+            controller.store.pinnedShelfID = nil
+            controller.syncWindowTitle()
+        }
+    }
+
+    private func restore(recent: RecentShelf) {
+        let urls = existingURLs(for: recent.paths)
+        settings.recentShelves.removeAll { $0.id == recent.id }
+        guard !urls.isEmpty else {
+            showError(
+                title: "无法恢复文件架",
+                detail: "记录中的文件已被移动或删除。",
+                window: NSApp.keyWindow
+            )
+            return
+        }
+        spawn(urls: urls, name: recent.name, tint: recent.tint)
+    }
+
+    private func removeRecent(_ recent: RecentShelf) {
+        settings.recentShelves.removeAll { $0.id == recent.id }
+    }
+
+    private func preserveShelvesForRelaunch() {
+        for controller in shelves { recordRecentShelf(from: controller) }
+    }
+
+    private func recordRecentShelf(from controller: ShelfWindowController) {
+        let store = controller.store
+        guard !store.items.isEmpty, !store.isPinned else { return }
+        let recent = RecentShelf(
+            name: store.displayTitle,
+            tint: store.tint,
+            paths: store.items.map(\.url.path)
+        )
+        var recents = settings.recentShelves
+        recents.insert(recent, at: 0)
+        if recents.count > 12 { recents.removeLast(recents.count - 12) }
+        settings.recentShelves = recents
+    }
+
+    private func existingURLs(for paths: [String]) -> [URL] {
+        paths.compactMap { path in
+            FileManager.default.fileExists(atPath: path)
+                ? URL(fileURLWithPath: path)
+                : nil
+        }
+    }
+
+    // MARK: - Double Command screenshot
+
+    func captureNearestWindowToShelf() {
+        guard !isCapturingScreenshot else { return }
+        screenRecordingPermission.refresh()
+        switch screenRecordingPermission.state {
+        case .active:
+            break
+        case .notGranted:
+            screenRecordingPermission.requestAccess()
+            if screenRecordingPermission.state != .active {
+                showScreenRecordingPermissionAlert()
+            }
+            return
+        case .requiresRelaunch:
+            showScreenRecordingPermissionAlert()
+            return
+        }
+
+        isCapturingScreenshot = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isCapturingScreenshot = false }
+            do {
+                let capture = try await WindowScreenshotService.captureNearestWindow()
+                let url = try WindowScreenshotService.savePNG(
+                    capture.image,
+                    appName: capture.appName,
+                    windowTitle: capture.windowTitle
+                )
+                let target = self.nearestVisibleShelf(to: NSEvent.mouseLocation)
+                    ?? self.spawn(forcePosition: .cursor)
+                self.cancelEmptyAutoClose(target)
+                target.showExistingAnimated(activating: true)
+                NSApp.activate(ignoringOtherApps: true)
+                target.store.add(urls: [url])
+                if let item = target.store.items.first(where: { $0.url == url }) {
+                    target.store.selectedIDs = [item.id]
+                }
+                if let frame = target.window?.frame {
+                    ScreenshotFlyInPresenter.show(
+                        image: capture.image,
+                        from: capture.frame,
+                        to: NSPoint(x: frame.midX, y: frame.midY)
+                    )
+                }
+                NSSound(named: "Tink")?.play()
+                NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+                self.scheduleIdleSnap(target)
+            } catch {
+                self.showError(
+                    title: "无法截取窗口",
+                    detail: error.localizedDescription,
+                    window: NSApp.keyWindow
+                )
+            }
+        }
+    }
+
+    private func nearestVisibleShelf(to point: NSPoint) -> ShelfWindowController? {
+        let visible = shelves.filter { $0.window?.isVisible == true }
+        return visible.min {
+            let lhs = $0.window?.frame
+            let rhs = $1.window?.frame
+            guard let lhs, let rhs else { return false }
+            let ldx = lhs.midX - point.x
+            let ldy = lhs.midY - point.y
+            let rdx = rhs.midX - point.x
+            let rdy = rhs.midY - point.y
+            return ldx * ldx + ldy * ldy < rdx * rdx + rdy * rdy
+        }
+    }
+
+    private func showScreenRecordingPermissionAlert() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "需要屏幕录制权限"
+        if screenRecordingPermission.state == .requiresRelaunch {
+            alert.informativeText = "系统已记录屏幕录制权限。请退出并重新打开 DropPoint 后再试。"
+            alert.addButton(withTitle: "好")
+            alert.runModal()
+            return
+        }
+        alert.informativeText = "双 Command 截图需要截取最近的窗口。请在系统设置 › 隐私与安全性 › 屏幕录制中允许 DropPoint。"
+        alert.addButton(withTitle: "打开系统设置")
+        alert.addButton(withTitle: "稍后")
+        if alert.runModal() == .alertFirstButtonReturn {
+            screenRecordingPermission.openSystemSettings()
+        }
+    }
+
+    func showPermissionGuide() {
+        if let controller = permissionGuideController {
+            controller.show()
+            return
+        }
+        let controller = PermissionGuideWindowController(
+            permission: inputMonitoringPermission
+        ) { [weak self] in
+            self?.permissionGuideController = nil
+        }
+        permissionGuideController = controller
+        controller.show()
+    }
+
     func showSettings() {
         if let window = settingsWindowController?.window {
             window.makeKeyAndOrderFront(nil)
@@ -366,6 +628,8 @@ final class ShelfWindowManager {
         let view = SettingsView(
             settings: settings,
             inputMonitoringPermission: inputMonitoringPermission,
+            screenRecordingPermission: screenRecordingPermission,
+            onShowPermissionGuide: { [weak self] in self?.showPermissionGuide() },
             onDismiss: { [weak self] in self?.settingsWindowController?.window?.close() }
         )
         let window = DropPointSettingsWindow(
@@ -447,8 +711,15 @@ final class ShelfWindowManager {
         controller.move(to: origin, duration: 0.34)
     }
 
-    private func makeShelf() -> ShelfWindowController {
+    private func makeShelf(
+        name: String = "",
+        tint: ShelfTint = .blue,
+        pinnedShelfID: UUID? = nil
+    ) -> ShelfWindowController {
         let store = ShelfStore()
+        store.shelfName = name
+        store.tint = tint
+        store.pinnedShelfID = pinnedShelfID
         applySettings(to: store)
         let controller = ShelfWindowController(
             store: store,
@@ -466,9 +737,24 @@ final class ShelfWindowManager {
         store.onItemCountChanged = { [weak controller] count in
             controller?.updateExpandedSize(for: count)
         }
+        store.onItemsChanged = { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            self.syncPinnedShelf(controller)
+        }
+        store.onShelfMetadataChanged = { [weak self, weak controller] in
+            guard let self else { return }
+            controller?.syncWindowTitle()
+            if let controller { self.syncPinnedShelf(controller) }
+        }
+        store.onPinRequested = { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            self.togglePin(controller)
+        }
         store.onPreviewRequested = { [weak self, weak controller] url in
             guard let self, let controller else { return }
-            self.quickLookPreviewController.show(url, for: controller)
+            self.quickLookPreviewController.show(url, for: controller) { [weak controller] in
+                controller?.window
+            }
         }
         store.onDropAccepted = { [weak self, weak controller] in
             guard let self, let controller else { return }
@@ -555,17 +841,14 @@ final class ShelfWindowManager {
         store.autoCollapseExpanded = settings.autoCollapseExpanded
         store.focusShelfOnShow = settings.focusShelfOnShow
         store.instantActionsEnabled = settings.instantActionsEnabled
+        store.showQuickActionBar = settings.showQuickActionBar
         store.enabledActions = settings.enabledActions
         store.customActions = settings.customActions
     }
 
     private func remove(_ controller: ShelfWindowController) {
         clearPasteTarget(controller)
-        let urls = controller.store.items.map(\.url)
-        if !urls.isEmpty {
-            closedHistory.append(urls)
-            if closedHistory.count > 10 { closedHistory.removeFirst() }
-        }
+        recordRecentShelf(from: controller)
         cancelEmptyAutoClose(controller)
         cancelIdleSnap(controller)
         cancelPostDropSnap(controller)
@@ -625,6 +908,80 @@ final class ShelfWindowManager {
             return point
         }
     }
+
+    #if DEBUG
+    func prepareDebugSnapshotContent(paths: [String]) {
+        let urls = paths.map { URL(fileURLWithPath: $0) }
+        if !urls.isEmpty {
+            settings.pinnedShelves = [
+                PinnedShelf(name: "项目素材", tint: .orange, paths: urls.map(\.path)),
+                PinnedShelf(name: "待发送", tint: .purple, paths: urls.prefix(2).map(\.path)),
+            ]
+            settings.recentShelves = [
+                RecentShelf(name: "设计参考", tint: .green, paths: urls.prefix(3).map(\.path)),
+                RecentShelf(name: "周报附件", tint: .blue, paths: urls.suffix(2).map(\.path)),
+            ]
+            for (index, controller) in shelves.enumerated() where index == 0 {
+                if controller.store.items.count > 1, !controller.store.isExpanded,
+                   ProcessInfo.processInfo.environment["DROPPOINT_SNAPSHOT_DRAG_OUT"] != "1" {
+                    controller.store.toggleExpanded()
+                }
+                controller.store.renameShelf(to: "灵感收集")
+                controller.store.setTint(.pink)
+                togglePin(controller)
+                if ProcessInfo.processInfo.environment["DROPPOINT_SNAPSHOT_DRAG_OUT"] == "1" {
+                    controller.store.isDraggingOut = true
+                }
+            }
+        }
+    }
+
+    func writeDebugSnapshots(to directory: URL) {
+        NSApp.activate(ignoringOtherApps: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for (index, controller) in shelves.enumerated() {
+            guard let window = controller.window else { continue }
+            controller.syncWindowTitle()
+            writeSnapshot(
+                of: window,
+                to: directory.appendingPathComponent("shelf-\(index).png")
+            )
+        }
+        if ProcessInfo.processInfo.environment["DROPPOINT_SNAPSHOT_PERMISSION"] == "1" {
+            showPermissionGuide()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.25))
+            if let window = permissionGuideController?.window {
+                writeSnapshot(
+                    of: window,
+                    to: directory.appendingPathComponent("permission.png")
+                )
+            }
+        }
+    }
+
+    private func writeSnapshot(of window: NSWindow, to url: URL) {
+        guard let view = window.contentView else { return }
+        view.layoutSubtreeIfNeeded()
+        view.displayIfNeeded()
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        let result = NSImage(size: NSSize(width: rep.pixelsWide, height: rep.pixelsHigh))
+        result.lockFocus()
+        let appearance = window.effectiveAppearance
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let background = isDark
+            ? NSColor(srgbRed: 0.075, green: 0.082, blue: 0.095, alpha: 1)
+            : NSColor(srgbRed: 0.965, green: 0.968, blue: 0.975, alpha: 1)
+        background.setFill()
+        NSRect(x: 0, y: 0, width: rep.pixelsWide, height: rep.pixelsHigh).fill()
+        rep.draw(in: NSRect(x: 0, y: 0, width: rep.pixelsWide, height: rep.pixelsHigh))
+        result.unlockFocus()
+        guard let tiff = result.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff),
+              let data = bitmap.representation(using: .png, properties: [:]) else { return }
+        try? data.write(to: url)
+    }
+    #endif
 
     private func debugLog(_ message: String) {
         guard settings.debug else { return }

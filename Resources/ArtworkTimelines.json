@@ -1,0 +1,24 @@
+{
+  "Cat_in_Box": {
+    "sourceSHA256": "a3d3209156c25caf0a8b278d67f4af281d8737dab8ef2426f6cc0a9af03921bb",
+    "duration": 2.97,
+    "sampledFrames": 90,
+    "encodedFrames": 90,
+    "resolution": [
+      224,
+      224
+    ],
+    "bytes": 682589
+  },
+  "Empty Box": {
+    "sourceSHA256": "eb735a1eed717519166371356cca4d1a4f030f60870a532a564aa295f57ca623",
+    "duration": 4.037,
+    "sampledFrames": 122,
+    "encodedFrames": 55,
+    "resolution": [
+      304,
+      304
+    ],
+    "bytes": 276355
+  }
+}

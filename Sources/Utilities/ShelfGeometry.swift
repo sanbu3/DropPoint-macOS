@@ -2,7 +2,7 @@ import AppKit
 
 enum ShelfGeometry {
     static let compactSize = NSSize(width: 198, height: 207)
-    static let expandedSize = NSSize(width: 432, height: 390)
+    static let expandedSize = NSSize(width: 432, height: 436)
     static let optionClearHintSize = NSSize(width: 216, height: 74)
 
     /// Prefer the handle edge; use the top edge when the shelf is docked at the bottom.
@@ -26,13 +26,13 @@ enum ShelfGeometry {
         visibleFrame.insetBy(dx: dockingInset, dy: dockingInset)
     }
 
-    static func expandedSize(itemCount: Int) -> NSSize {
-        let width: CGFloat = itemCount <= 2 ? 336 : expandedSize.width
+    static func expandedSize(itemCount: Int, showsQuickActionBar: Bool = true) -> NSSize {
         let rows = max(1, Int(ceil(Double(itemCount) / 3.0)))
+        let quickActionHeight: CGFloat = showsQuickActionBar ? 43 : 0
         switch rows {
-        case 1: return NSSize(width: width, height: 224)
-        case 2: return NSSize(width: width, height: 344)
-        default: return NSSize(width: width, height: expandedSize.height)
+        case 1: return NSSize(width: 432, height: 227 + quickActionHeight)
+        case 2: return NSSize(width: 432, height: 347 + quickActionHeight)
+        default: return NSSize(width: 432, height: 393 + quickActionHeight)
         }
     }
 

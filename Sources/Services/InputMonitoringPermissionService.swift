@@ -11,6 +11,9 @@ final class InputMonitoringPermissionService {
         case active
     }
 
+    var onShowGuide: (() -> Void)?
+    var onWillRelaunch: (() -> Void)?
+
     private let wasGrantedAtLaunch: Bool
     private(set) var state: State
 
@@ -47,15 +50,7 @@ final class InputMonitoringPermissionService {
     }
 
     func relaunch() {
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.createsNewApplicationInstance = true
-        NSWorkspace.shared.openApplication(
-            at: Bundle.main.bundleURL,
-            configuration: configuration
-        ) { _, error in
-            guard error == nil else { return }
-            Task { @MainActor in NSApp.terminate(nil) }
-        }
+        AppRelaunchService.relaunch { onWillRelaunch?() }
     }
 
     var title: String {
@@ -87,7 +82,8 @@ final class InputMonitoringPermissionService {
 
     func performPrimaryAction() {
         switch state {
-        case .notGranted: requestAccess()
+        case .notGranted:
+            if let onShowGuide { onShowGuide() } else { requestAccess() }
         case .requiresRelaunch: relaunch()
         case .active: openSystemSettings()
         }

@@ -1,227 +1,5 @@
 import AppKit
 import SwiftUI
-import WebKit
-
-/// macOS 27's WebKit mouse tracker can re-enter SwiftUI hit testing and crash
-/// in NSViewResponder's executor lookup. Keep decorative web views out of the
-/// shelf on that OS until a framework fix is verified; render the same artwork
-/// through AppKit instead. Earlier systems retain the SVG timeline.
-struct AnimatedSVGView: View {
-    let name: String
-    var animationEnabled = true
-    var pauseAfterCycle = false
-    var randomRestart = false
-    var onReady: (() -> Void)?
-
-    private static let stillImages: [String: NSImage] = {
-        var images: [String: NSImage] = [:]
-        for name in ["Cat_in_Box", "Empty Box"] {
-            if let url = Bundle.main.url(forResource: name, withExtension: "svg"),
-               let image = NSImage(contentsOf: url) { images[name] = image }
-        }
-        return images
-    }()
-
-    var body: some View {
-        if #available(macOS 27, *) {
-            Group {
-                if let image = Self.stillImages[name] {
-                    Image(nsImage: image).resizable().scaledToFit()
-                }
-            }
-            .allowsHitTesting(false)
-            .onAppear { onReady?() }
-        } else {
-            WebKitSVGView(name: name, animationEnabled: animationEnabled,
-                          pauseAfterCycle: pauseAfterCycle, randomRestart: randomRestart,
-                          onReady: onReady)
-        }
-    }
-}
-
-private struct WebKitSVGView: NSViewRepresentable {
-    let name: String
-    var animationEnabled = true
-    var pauseAfterCycle = false
-    var randomRestart = false
-    var onReady: (() -> Void)?
-
-    func makeCoordinator() -> Coordinator {
-        let coordinator = Coordinator()
-        coordinator.onReady = onReady
-        return coordinator
-    }
-
-    func makeNSView(context: Context) -> NonInteractiveSVGWebView {
-        let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent()
-
-        let webView = NonInteractiveSVGWebView(frame: .zero, configuration: configuration)
-        webView.navigationDelegate = context.coordinator
-        webView.underPageBackgroundColor = .clear
-        webView.setValue(false, forKey: "drawsBackground")
-        webView.setAccessibilityElement(false)
-
-        loadSVG(in: webView, coordinator: context.coordinator)
-        return webView
-    }
-
-    func updateNSView(_ webView: NonInteractiveSVGWebView, context: Context) {
-        guard let url = resourceURL else { return }
-        if context.coordinator.loadedURL != url {
-            loadSVG(in: webView, coordinator: context.coordinator)
-        } else {
-            context.coordinator.setAnimationEnabled(animationEnabled, in: webView)
-        }
-    }
-
-    static func dismantleNSView(_ webView: NonInteractiveSVGWebView, coordinator: Coordinator) {
-        coordinator.stopAnimation(in: webView)
-        webView.stopLoading()
-        webView.navigationDelegate = nil
-    }
-
-    private var resourceURL: URL? {
-        Bundle.main.url(forResource: name, withExtension: "svg")
-    }
-
-    private func loadSVG(in webView: WKWebView, coordinator: Coordinator) {
-        guard let url = resourceURL,
-              let svg = try? String(contentsOf: url, encoding: .utf8) else { return }
-        coordinator.loadedURL = url
-        coordinator.animationEnabled = animationEnabled
-        coordinator.pauseAfterCycle = pauseAfterCycle
-        coordinator.randomRestart = randomRestart
-        coordinator.isLoaded = false
-        let document = """
-        <!doctype html>
-        <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>
-            html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
-            body > svg { display: block; width: 100%; height: 100%; }
-          </style>
-        </head>
-        <body>\(svg)</body>
-        </html>
-        """
-        webView.loadHTMLString(document, baseURL: url.deletingLastPathComponent())
-    }
-
-    @MainActor
-    final class Coordinator: NSObject, WKNavigationDelegate {
-        var loadedURL: URL?
-        var animationEnabled = true
-        var pauseAfterCycle = false
-        var randomRestart = false
-        var isLoaded = false
-        var onReady: (() -> Void)?
-
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
-            isLoaded = true
-            applyAnimationState(in: webView)
-            // Navigation completion precedes WebKit's first painted frame.
-            webView.callAsyncJavaScript(
-                "await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));",
-                arguments: [:], in: nil, in: .page
-            ) { [weak self] _ in
-                self?.onReady?()
-            }
-        }
-
-        func setAnimationEnabled(_ enabled: Bool, in webView: WKWebView) {
-            guard animationEnabled != enabled else { return }
-            animationEnabled = enabled
-            guard isLoaded else { return }
-            applyAnimationState(in: webView)
-        }
-
-        func stopAnimation(in webView: WKWebView) {
-            webView.evaluateJavaScript(
-                "window.__dropPointAnimation?.stop?.(); document.querySelector('svg')?.pauseAnimations()"
-            )
-        }
-
-        private func applyAnimationState(in webView: WKWebView) {
-            let cycle = pauseAfterCycle
-            let rand = randomRestart
-            let enabled = animationEnabled
-            let script = """
-            (function() {
-                var svg = document.querySelector('svg');
-                if (!svg) return;
-                var previous = window.__dropPointAnimation;
-                if (previous && previous.stop) previous.stop();
-
-                var state = {
-                    enabled: \(enabled),
-                    timers: [],
-                    stop: function() {
-                        state.enabled = false;
-                        state.timers.forEach(clearTimeout);
-                        state.timers = [];
-                        svg.pauseAnimations();
-                    }
-                };
-                window.__dropPointAnimation = state;
-
-                function later(action, delay) {
-                    var timer = setTimeout(function() {
-                        state.timers = state.timers.filter(function(value) { return value !== timer; });
-                        if (state.enabled) action();
-                    }, delay);
-                    state.timers.push(timer);
-                }
-                function play() {
-                    if (!state.enabled) return;
-                    svg.setCurrentTime(0);
-                    svg.unpauseAnimations();
-                }
-                function pause() { svg.pauseAnimations(); }
-
-                if (!state.enabled) {
-                    pause();
-                    return;
-                }
-
-                if (\(rand)) {
-                    play();
-                    var dur = 3.0;
-                    function cycle() {
-                        pause();
-                        var delay = 3000 + Math.random() * 5000;
-                        later(function() {
-                            play();
-                            later(cycle, dur * 1000);
-                        }, delay);
-                    }
-                    later(cycle, dur * 1000);
-                } else if (\(cycle)) {
-                    play();
-                    later(pause, 3000);
-                } else {
-                    svg.unpauseAnimations();
-                }
-            })();
-            """
-            webView.evaluateJavaScript(script)
-        }
-    }
-}
-
-final class NonInteractiveSVGWebView: WKWebView {
-    override var acceptsFirstResponder: Bool { false }
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-    override init(frame: CGRect, configuration: WKWebViewConfiguration) {
-        super.init(frame: frame, configuration: configuration)
-    }
-
-    required init?(coder: NSCoder) {
-        nil
-    }
-}
 
 /// Transparent overlay that lets the window be dragged by its background and
 /// remains a reliable drop destination while SwiftUI swaps shelf animations.
@@ -310,7 +88,7 @@ struct DragOutGestureState {
     }
 
     mutating func claimDragStart() -> Bool {
-        guard !hasStartedDrag else { return false }
+        guard isMouseDown, !hasStartedDrag else { return false }
         hasStartedDrag = true
         return true
     }
@@ -407,6 +185,17 @@ final class DragPassThroughNSView: NSView {
     private var dragOutGesture = DragOutGestureState()
     private var windowDragTracker = ShelfWindowDragTracker()
     private var dragKeepOpen = false
+    // Deliberately retain the source and window until AppKit's end callback.
+    // SwiftUI may replace/remove this representable while a drag is in flight.
+    private struct DragLease {
+        let source: DragPassThroughNSView
+        let window: NSWindow?
+        let keepOpen: Bool
+        let action: DragDefaultAction
+        let onBegan: (() -> Void)?
+        let onEnded: ((NSDragOperation, Bool) -> Void)?
+    }
+    private var dragLease: DragLease?
     private var dragOutMouseDownPoint: NSPoint = .zero
     private let dragOutThreshold: CGFloat = 5
 
@@ -455,15 +244,7 @@ final class DragPassThroughNSView: NSView {
     @discardableResult
     func acceptExternalPasteboard(_ pasteboard: NSPasteboard) -> Bool {
         guard let dropStore else { return false }
-        let accepted = FileDropImporter.importFiles(from: pasteboard) { [weak dropStore] event in
-            switch event {
-            case .imported(let urls): dropStore?.add(urls: urls)
-            case .failed(let message): dropStore?.onDropFailed?(message)
-            }
-        }
-        if accepted { dropStore.onDropAccepted?() }
-        dropStore.updateDropTargeted(false)
-        return accepted
+        return ShelfDropCoordinator.accept(pasteboard, into: dropStore)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -490,7 +271,8 @@ final class DragPassThroughNSView: NSView {
             continueWindowDrag(with: event)
             return
         }
-        guard !dragOutGesture.hasStartedDrag, let items = itemsProvider?(), !items.isEmpty else { return }
+        guard dropStore?.isClosed != true, !dragOutGesture.hasStartedDrag,
+              let items = itemsProvider?(), !items.isEmpty else { return }
         let current = convert(event.locationInWindow, from: nil)
         let dx = current.x - dragOutMouseDownPoint.x
         let dy = current.y - dragOutMouseDownPoint.y
@@ -505,6 +287,8 @@ final class DragPassThroughNSView: NSView {
             draggingItem.setDraggingFrame(frame, contents: item.image)
             return draggingItem
         }
+        dragLease = DragLease(source: self, window: window, keepOpen: dragKeepOpen,
+                              action: dragAction, onBegan: onDragBegan, onEnded: onDragOutEnded)
         let session = beginDraggingSession(with: draggingItems, event: event, source: self)
         session.animatesToStartingPositionsOnCancelOrFail = true
     }
@@ -572,7 +356,7 @@ extension DragPassThroughNSView: NSDraggingSource {
     func draggingSession(_ session: NSDraggingSession, willBeginAt screenPoint: NSPoint) {
         let shouldActivate = dragOutGesture.draggingSessionWillBegin()
         if shouldActivate {
-            onDragBegan?()
+            dragLease?.onBegan?()
         } else {
             session.animatesToStartingPositionsOnCancelOrFail = false
             hideLateDraggingItems(in: session)
@@ -584,15 +368,19 @@ extension DragPassThroughNSView: NSDraggingSource {
         let flags = NSEvent.modifierFlags
         if flags.contains(.option) { return .copy }
         if flags.contains(.command) { return .move }
-        return dragAction == .move ? .move : .copy
+        return (dragLease?.action ?? dragAction) == .move ? .move : .copy
     }
 
     func ignoreModifierKeys(for session: NSDraggingSession) -> Bool { false }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         let didActivate = dragOutGesture.draggingSessionEnded()
-        if didActivate {
-            onDragOutEnded?(operation, dragKeepOpen)
+        let lease = dragLease
+        dragLease = nil
+        withExtendedLifetime(lease) {
+            if didActivate, let lease {
+                lease.onEnded?(operation, lease.keepOpen)
+            }
         }
         dragKeepOpen = false
     }

@@ -43,7 +43,7 @@ final class ShelfGeometryTests: XCTestCase {
                 targetSize: expanded,
                 in: area
             ),
-            NSPoint(x: 100, y: 490)
+            NSPoint(x: 100, y: 444)
         )
         XCTAssertEqual(
             ShelfGeometry.resizedOrigin(
@@ -51,7 +51,7 @@ final class ShelfGeometryTests: XCTestCase {
                 targetSize: expanded,
                 in: area
             ),
-            NSPoint(x: 868, y: 490)
+            NSPoint(x: 868, y: 444)
         )
         XCTAssertEqual(
             ShelfGeometry.resizedOrigin(
@@ -81,19 +81,34 @@ final class ShelfGeometryTests: XCTestCase {
                 targetSize: ShelfGeometry.expandedSize,
                 in: area
             ),
-            NSPoint(x: 484, y: 285)
+            NSPoint(x: 484, y: 262)
         )
     }
 
     func testExpandedShelfUsesCompactInspectionSize() {
-        XCTAssertEqual(ShelfGeometry.expandedSize, NSSize(width: 432, height: 390))
+        XCTAssertEqual(ShelfGeometry.expandedSize, NSSize(width: 432, height: 436))
     }
 
     func testExpandedShelfHeightTracksVisibleRows() {
-        XCTAssertEqual(ShelfGeometry.expandedSize(itemCount: 2), NSSize(width: 336, height: 224))
-        XCTAssertEqual(ShelfGeometry.expandedSize(itemCount: 3), NSSize(width: 432, height: 224))
-        XCTAssertEqual(ShelfGeometry.expandedSize(itemCount: 4).height, 344)
-        XCTAssertEqual(ShelfGeometry.expandedSize(itemCount: 7).height, 390)
+        XCTAssertEqual(ShelfGeometry.expandedSize(itemCount: 2), NSSize(width: 432, height: 270))
+        XCTAssertEqual(ShelfGeometry.expandedSize(itemCount: 3), NSSize(width: 432, height: 270))
+        XCTAssertEqual(ShelfGeometry.expandedSize(itemCount: 4).height, 390)
+        XCTAssertEqual(ShelfGeometry.expandedSize(itemCount: 7).height, 436)
+    }
+
+    func testExpandedShelfShrinksWhenQuickActionBarIsHidden() {
+        XCTAssertEqual(
+            ShelfGeometry.expandedSize(itemCount: 2, showsQuickActionBar: false),
+            NSSize(width: 432, height: 227)
+        )
+        XCTAssertEqual(
+            ShelfGeometry.expandedSize(itemCount: 4, showsQuickActionBar: false).height,
+            347
+        )
+        XCTAssertEqual(
+            ShelfGeometry.expandedSize(itemCount: 7, showsQuickActionBar: false).height,
+            393
+        )
     }
 
     func testIdleSnapIncludesAnEmptyShelf() {
@@ -207,6 +222,7 @@ final class ShelfHoverPasteTargetStateTests: XCTestCase {
     }
 }
 
+@MainActor
 final class HoveredShelfShortcutBindingTests: XCTestCase {
     func testHoveringAShelfClaimsPasteAndUnmodifiedSpace() {
         XCTAssertEqual(
@@ -244,6 +260,8 @@ final class ExternalFileDragMonitorTests: XCTestCase {
         pasteboard.clearContents()
         let monitor = ExternalFileDragMonitor(dragPasteboard: pasteboard)
         monitor.sensitivity = .high
+        var current = Date(timeIntervalSinceReferenceDate: 100)
+        monitor.now = { current }
         var shakeCount = 0
         monitor.onShake = { shakeCount += 1 }
         monitor.beginPotentialDrag(at: .zero)
@@ -255,6 +273,7 @@ final class ExternalFileDragMonitorTests: XCTestCase {
                 mouseButtonPressed: true,
                 mouseLocation: NSPoint(x: x, y: 0)
             )
+            current.addTimeInterval(0.05)
         }
 
         XCTAssertEqual(shakeCount, 1)
@@ -1173,8 +1192,10 @@ final class InteractionSafetyTests: XCTestCase {
         XCTAssertEqual(menu.minimumWidth, 230)
         XCTAssertEqual(menu.font.pointSize, 14)
         XCTAssertEqual(menu.items.map(\.title), [
-            "在 Finder 中显示", "打开文件", "快速查看", "", "邮件", "", "复制路径", "",
-            "压缩为 ZIP", "", "自定义操作", "", "清空文件架", "隐藏文件架"
+            "在 Finder 中显示", "打开文件", "快速查看", "重命名项目…", "打开方式", "",
+            "邮件", "", "复制路径", "", "压缩为 ZIP", "", "自定义操作", "",
+            "重命名文件架…", "文件架颜色", "固定文件架", "",
+            "清空文件架", "隐藏文件架"
         ])
         let represented = menu.items.compactMap { $0.representedObject as? String }
         XCTAssertEqual(Set(represented), Set(store.enabledActions.map(\.rawValue)))
@@ -1189,7 +1210,10 @@ final class InteractionSafetyTests: XCTestCase {
         XCTAssertTrue(emptySelectionMenu.items.filter { $0.representedObject != nil }.allSatisfy { !$0.isEnabled })
         store.instantActionsEnabled = false
         store.isExpanded = false
-        XCTAssertEqual(ShelfContextMenuFactory.make(for: store).items.map(\.title), ["清空文件架", "隐藏文件架"])
+        XCTAssertEqual(ShelfContextMenuFactory.make(for: store).items.map(\.title), [
+            "重命名文件架…", "文件架颜色", "固定文件架", "",
+            "清空文件架", "隐藏文件架"
+        ])
     }
 
     func testHintStaysOutsideShelfAtScreenEdgesAndOnOffsetDisplays() {
@@ -1394,6 +1418,91 @@ final class InteractionSafetyTests: XCTestCase {
 }
 
 @MainActor
+final class ShelfCommandAndCollectionTests: XCTestCase {
+    private func makeFiles(_ names: [String]) throws -> (URL, [URL]) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DropPointTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let urls = names.map { directory.appendingPathComponent($0) }
+        for url in urls { try Data("test".utf8).write(to: url) }
+        return (directory, urls)
+    }
+
+    func testReorderSelectedItems() throws {
+        let (directory, urls) = try makeFiles(["a.txt", "b.txt", "c.txt"])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ShelfStore()
+        store.isExpanded = true
+        XCTAssertEqual(store.add(urls: urls), 3)
+        store.selectedIDs = [store.items[0].id]
+        store.moveSelectedItems(by: 1)
+        XCTAssertEqual(store.items.map(\.name), ["b.txt", "a.txt", "c.txt"])
+        store.moveSelectedItems(by: -1)
+        XCTAssertEqual(store.items.map(\.name), ["a.txt", "b.txt", "c.txt"])
+    }
+
+    func testShelfIdentityRenameAndTint() throws {
+        let (directory, urls) = try makeFiles(["a.txt"])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ShelfStore()
+        store.add(urls: urls)
+        var changes = 0
+        store.onShelfMetadataChanged = { changes += 1 }
+        store.renameShelf(to: "  项目素材  ")
+        store.setTint(.orange)
+        XCTAssertEqual(store.shelfName, "项目素材")
+        XCTAssertEqual(store.displayTitle, "项目素材")
+        XCTAssertEqual(store.tint, .orange)
+        XCTAssertEqual(changes, 2)
+    }
+
+    func testLegacyToggleShortcutMigratesToNewShelf() {
+        let suiteName = "DropPointTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("toggle", forKey: "shortcutAction")
+        let settings = AppSettings(defaults: defaults)
+        XCTAssertEqual(settings.shortcutAction, .spawn)
+        XCTAssertTrue(settings.doubleCommandScreenshotEnabled)
+    }
+
+    func testPinnedAndRecentShelvesRoundTrip() throws {
+        let pinned = PinnedShelf(name: "素材", tint: .pink, paths: ["/tmp/a.png", "/tmp/b.png"])
+        let recent = RecentShelf(name: "上周", tint: .green, paths: ["/tmp/c.txt"])
+        let pinnedData = try JSONEncoder().encode([pinned])
+        let recentData = try JSONEncoder().encode([recent])
+        XCTAssertEqual(try JSONDecoder().decode([PinnedShelf].self, from: pinnedData), [pinned])
+        XCTAssertEqual(try JSONDecoder().decode([RecentShelf].self, from: recentData), [recent])
+        XCTAssertEqual(pinned.itemCount, 2)
+        XCTAssertEqual(recent.displayName, "上周")
+    }
+
+    func testFreshInstallShowsAShelfAndDockIcon() {
+        let suiteName = "DropPointTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(defaults: defaults)
+        XCTAssertTrue(settings.showInDock)
+        XCTAssertTrue(settings.showQuickActionBar)
+        XCTAssertTrue(settings.spawnOnLaunch)
+        XCTAssertEqual(settings.shortcutAction, .spawn)
+        XCTAssertTrue(settings.doubleCommandScreenshotEnabled)
+    }
+
+    func testDoubleCommandChordTriggersOncePerHoldAndHonorsCooldown() {
+        var chord = DoubleCommandChordState()
+        let start = Date(timeIntervalSinceReferenceDate: 100)
+        XCTAssertFalse(chord.update(leftCommand: true, rightCommand: false, timestamp: start))
+        XCTAssertTrue(chord.update(leftCommand: true, rightCommand: true, timestamp: start))
+        XCTAssertFalse(chord.update(leftCommand: true, rightCommand: true, timestamp: start.addingTimeInterval(0.2)))
+        XCTAssertFalse(chord.update(leftCommand: false, rightCommand: true, timestamp: start.addingTimeInterval(0.3)))
+        XCTAssertFalse(chord.update(leftCommand: true, rightCommand: true, timestamp: start.addingTimeInterval(0.4)))
+        XCTAssertFalse(chord.update(leftCommand: false, rightCommand: false, timestamp: start.addingTimeInterval(0.9)))
+        XCTAssertTrue(chord.update(leftCommand: true, rightCommand: true, timestamp: start.addingTimeInterval(1.0)))
+    }
+}
+
+@MainActor
 final class ShelfDropHitTestingTests: XCTestCase {
     func testImageDropHitsNativeDestinationAcrossAnimatedShelfStates() async throws {
         for name in ["Cat_in_Box", "Empty Box"] {
@@ -1414,7 +1523,7 @@ final class ShelfDropHitTestingTests: XCTestCase {
             hosting.layoutSubtreeIfNeeded()
             if #available(macOS 27, *) {
                 func containsWebView(_ view: NSView) -> Bool {
-                    view is NonInteractiveSVGWebView || view.subviews.contains(where: containsWebView)
+                    String(describing: type(of: view)).contains("WebView") || view.subviews.contains(where: containsWebView)
                 }
                 XCTAssertFalse(containsWebView(hosting), "the crashing WebKit mouse tracker must be absent")
             }

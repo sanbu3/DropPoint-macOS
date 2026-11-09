@@ -10,7 +10,7 @@ struct ShelfView: View {
     @State private var handleOpacity: CGFloat = 0.64
 
     private var palette: ShelfPalette {
-        ShelfPalette(dark: colorScheme == .dark, focused: store.isFocused)
+        ShelfPalette(dark: colorScheme == .dark, focused: store.isFocused, tint: store.tint)
     }
 
     var body: some View {
@@ -47,12 +47,50 @@ struct ShelfView: View {
             .overlay {
                 shape.strokeBorder(palette.highlight, lineWidth: 1)
             }
+            .overlay {
+                shape.strokeBorder(
+                    palette.accent.opacity(store.isFocused ? 0.34 : 0.14),
+                    lineWidth: 1
+                )
+            }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: store.isFocused)
     }
 
     @ViewBuilder
     private var nativeGlassBackground: some View {
         let shape = RoundedRectangle(cornerRadius: 25, style: .continuous)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["DROPPOINT_SNAPSHOT_DIR"] != nil {
+            shape
+                .fill(palette.dark
+                    ? Color(red: 0.145, green: 0.155, blue: 0.175)
+                    : Color(red: 0.965, green: 0.968, blue: 0.975))
+                .overlay {
+                    shape.fill(palette.accent.opacity(palette.dark ? 0.06 : 0.04))
+                }
+        } else if #available(macOS 26.0, *) {
+            shape
+                .fill(.clear)
+                .glassEffect(
+                    .regular.tint(
+                        store.isDropTargeted
+                            ? palette.accent.opacity(0.14)
+                            : palette.surface.opacity(0.18)
+                    ),
+                    in: shape
+                )
+        } else {
+            shape
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    shape.fill(
+                        store.isDropTargeted
+                            ? palette.activeSurface.opacity(0.32)
+                            : palette.surface.opacity(0.24)
+                    )
+                }
+        }
+        #else
         if #available(macOS 26.0, *) {
             shape
                 .fill(.clear)
@@ -75,6 +113,7 @@ struct ShelfView: View {
                     )
                 }
         }
+        #endif
     }
 
     @ViewBuilder
@@ -110,6 +149,17 @@ struct ShelfView: View {
                         .position(x: 99, y: 95)
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.985)))
+
+                if store.isDraggingOut {
+                    DragOutBoxView(
+                        animationEnabled: !reduceMotion,
+                        palette: palette,
+                        itemCount: store.items.count
+                    )
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                    .zIndex(6)
+                }
             }
         }
         .animation(
@@ -119,6 +169,10 @@ struct ShelfView: View {
         .animation(
             reduceMotion ? nil : .smooth(duration: 0.2),
             value: store.items.isEmpty
+        )
+        .animation(
+            reduceMotion ? nil : .smooth(duration: 0.18),
+            value: store.isDraggingOut
         )
     }
 
@@ -243,6 +297,14 @@ struct ShelfView: View {
 
             guard event.modifierFlags.contains(.command) else { return event }
 
+            if chars == "r", modifiers == .command {
+                store.promptRenameShelf()
+                return nil
+            }
+            if chars == "p", modifiers == [.command, .shift] {
+                store.requestPinToggle()
+                return nil
+            }
             if (chars == "a" || code == 0), store.isExpanded {
                 store.selectAll()
                 return nil
@@ -277,6 +339,33 @@ struct ShelfView: View {
                 handleOpacity = 0.35
             }
         }
+    }
+}
+
+/// Shown while files are being dragged out of the compact shelf. The box
+/// animation confirms that the shelf has handed the items to the drag session.
+private struct DragOutBoxView: View {
+    let animationEnabled: Bool
+    let palette: ShelfPalette
+    let itemCount: Int
+
+    var body: some View {
+        VStack(spacing: 1) {
+            AnimatedSVGView(
+                name: "Empty Box",
+                animationEnabled: animationEnabled,
+                pauseAfterCycle: true
+            )
+            .frame(width: 124, height: 124)
+
+            Text(itemCount == 1 ? "拖到目标位置" : "\(itemCount) 项正在拖出")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(palette.ink)
+            Text("松手放下")
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .foregroundStyle(palette.muted)
+        }
+        .offset(y: -8)
     }
 }
 

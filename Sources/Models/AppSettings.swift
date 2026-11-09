@@ -222,7 +222,11 @@ final class AppSettings {
     var snapCorner: SnapCorner { didSet { persistPropertyChange() } }
     var showMenuBarIcon: Bool { didSet { persistPropertyChange() } }
     var showInDock: Bool { didSet { persistPropertyChange() } }
+    var showQuickActionBar: Bool { didSet { persistPropertyChange() } }
+    var doubleCommandScreenshotEnabled: Bool { didSet { persistPropertyChange() } }
     var instantActionsEnabled: Bool { didSet { persistPropertyChange() } }
+    var pinnedShelves: [PinnedShelf] { didSet { persistCollections() } }
+    var recentShelves: [RecentShelf] { didSet { persistCollections() } }
     var enabledActions: [ShelfAction] { didSet { persistPropertyChange() } }
     var customActions: [CustomShelfAction] { didSet { persistPropertyChange() } }
     var screenshotDetectionEnabled: Bool { didSet { persistPropertyChange() } }
@@ -239,8 +243,8 @@ final class AppSettings {
             rawValue: defaults.string(forKey: Keys.shelfPosition) ?? "cursor"
         ) ?? .cursor
         shortcutAction = ShortcutAction(
-            rawValue: defaults.string(forKey: Keys.shortcutAction) ?? "toggle"
-        ) ?? .toggle
+            rawValue: defaults.string(forKey: Keys.shortcutAction) ?? "spawn"
+        ) ?? .spawn
         shakeActivationEnabled = defaults.object(forKey: Keys.shakeActivationEnabled) as? Bool ?? true
         shakeSensitivity = ShakeSensitivity(
             rawValue: defaults.string(forKey: Keys.shakeSensitivity) ?? "medium"
@@ -267,8 +271,22 @@ final class AppSettings {
             rawValue: defaults.string(forKey: Keys.snapCorner) ?? "topRight"
         ) ?? .topRight
         showMenuBarIcon = defaults.object(forKey: Keys.showMenuBarIcon) as? Bool ?? true
-        showInDock = defaults.object(forKey: Keys.showInDock) as? Bool ?? false
+        showInDock = defaults.object(forKey: Keys.showInDock) as? Bool ?? true
+        showQuickActionBar = defaults.object(forKey: Keys.showQuickActionBar) as? Bool ?? true
+        doubleCommandScreenshotEnabled = defaults.object(forKey: Keys.doubleCommandScreenshotEnabled) as? Bool ?? true
         instantActionsEnabled = defaults.object(forKey: Keys.instantActionsEnabled) as? Bool ?? true
+        if let data = defaults.data(forKey: Keys.pinnedShelves),
+           let shelves = try? JSONDecoder().decode([PinnedShelf].self, from: data) {
+            pinnedShelves = shelves
+        } else {
+            pinnedShelves = []
+        }
+        if let data = defaults.data(forKey: Keys.recentShelves),
+           let shelves = try? JSONDecoder().decode([RecentShelf].self, from: data) {
+            recentShelves = shelves
+        } else {
+            recentShelves = []
+        }
         if let rawActions = defaults.array(forKey: Keys.enabledActions) as? [String] {
             var restoredActions = rawActions.compactMap(ShelfAction.init(rawValue:))
             if !defaults.bool(forKey: Keys.didAddImageCompressionAction),
@@ -304,6 +322,19 @@ final class AppSettings {
             rawValue: defaults.string(forKey: Keys.idleSnapDelay) ?? "oneMinute"
         ) ?? .oneMinute
         debug = defaults.object(forKey: Keys.debug) as? Bool ?? false
+        // Fresh installs use the new defaults above. Upgrades keep explicit
+        // Dock / launch choices; a version marker must not reset preferences.
+        if !defaults.bool(forKey: Keys.didEnableWindowMode) {
+            defaults.set(true, forKey: Keys.didEnableWindowMode)
+        }
+        // The main shortcut now creates a new shelf by default. One-time
+        // migration makes the "new empty shelf" action work even when
+        // another non-empty shelf is already visible.
+        if !defaults.bool(forKey: Keys.didSelectSpawnShortcut) {
+            shortcutAction = .spawn
+            defaults.set(ShortcutAction.spawn.rawValue, forKey: Keys.shortcutAction)
+            defaults.set(true, forKey: Keys.didSelectSpawnShortcut)
+        }
     }
 
     func apply(_ draft: SettingsDraft) {
@@ -327,6 +358,8 @@ final class AppSettings {
         snapCorner = draft.snapCorner
         showMenuBarIcon = draft.showMenuBarIcon
         showInDock = draft.showInDock
+        showQuickActionBar = draft.showQuickActionBar
+        doubleCommandScreenshotEnabled = draft.doubleCommandScreenshotEnabled
         instantActionsEnabled = draft.instantActionsEnabled
         enabledActions = draft.enabledActions
         customActions = draft.customActions
@@ -342,6 +375,11 @@ final class AppSettings {
     private func persistPropertyChange() {
         guard !isApplyingDraft else { return }
         persist()
+    }
+
+    private func persistCollections() {
+        defaults.set(try? JSONEncoder().encode(pinnedShelves), forKey: Keys.pinnedShelves)
+        defaults.set(try? JSONEncoder().encode(recentShelves), forKey: Keys.recentShelves)
     }
 
     private func persist() {
@@ -363,6 +401,8 @@ final class AppSettings {
         defaults.set(snapCorner.rawValue, forKey: Keys.snapCorner)
         defaults.set(showMenuBarIcon, forKey: Keys.showMenuBarIcon)
         defaults.set(showInDock, forKey: Keys.showInDock)
+        defaults.set(showQuickActionBar, forKey: Keys.showQuickActionBar)
+        defaults.set(doubleCommandScreenshotEnabled, forKey: Keys.doubleCommandScreenshotEnabled)
         defaults.set(instantActionsEnabled, forKey: Keys.instantActionsEnabled)
         defaults.set(enabledActions.map(\.rawValue), forKey: Keys.enabledActions)
         defaults.set(try? JSONEncoder().encode(customActions), forKey: Keys.customActions)
@@ -395,6 +435,10 @@ final class AppSettings {
         static let snapCorner = "snapCorner"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let showInDock = "showInDock"
+        static let showQuickActionBar = "showQuickActionBar"
+        static let doubleCommandScreenshotEnabled = "doubleCommandScreenshotEnabled"
+        static let pinnedShelves = "pinnedShelves"
+        static let recentShelves = "recentShelves"
         static let instantActionsEnabled = "instantActionsEnabled"
         static let enabledActions = "enabledActions"
         static let didAddImageCompressionAction = "didAddImageCompressionAction"
@@ -404,6 +448,8 @@ final class AppSettings {
         static let watchedFileCategory = "watchedFileCategory"
         static let idleSnapDelay = "idleSnapDelay"
         static let debug = "debug"
+        static let didEnableWindowMode = "didEnableWindowModeV2"
+        static let didSelectSpawnShortcut = "didSelectSpawnShortcutV2"
     }
 }
 
@@ -426,6 +472,8 @@ struct SettingsDraft: Equatable {
     var snapCorner: SnapCorner
     var showMenuBarIcon: Bool
     var showInDock: Bool
+    var showQuickActionBar: Bool
+    var doubleCommandScreenshotEnabled: Bool
     var instantActionsEnabled: Bool
     var enabledActions: [ShelfAction]
     var customActions: [CustomShelfAction]
@@ -455,6 +503,8 @@ struct SettingsDraft: Equatable {
         snapCorner = settings.snapCorner
         showMenuBarIcon = settings.showMenuBarIcon
         showInDock = settings.showInDock
+        showQuickActionBar = settings.showQuickActionBar
+        doubleCommandScreenshotEnabled = settings.doubleCommandScreenshotEnabled
         instantActionsEnabled = settings.instantActionsEnabled
         enabledActions = settings.enabledActions
         customActions = settings.customActions

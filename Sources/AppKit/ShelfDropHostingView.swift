@@ -8,6 +8,7 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
     var onHoverChanged: ((Bool) -> Void)?
 
     private var shelfTrackingArea: NSTrackingArea?
+    private var isTearingDown = false
     private var touchSequenceStartedAt: TimeInterval?
     private var initialTouchPositions: [ObjectIdentifier: NSPoint] = [:]
     private var maximumTouchCount = 0
@@ -55,7 +56,6 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
             return destination
         }
         // Decorative web content is never a pointer/drop destination.
-        if view is NonInteractiveSVGWebView { return nil }
         for child in view.subviews.reversed() {
             if let destination = nativeDropDestination(in: child, at: point) { return destination }
         }
@@ -82,6 +82,22 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
         )
         addTrackingArea(area)
         shelfTrackingArea = area
+    }
+
+    /// Stop hover dispatch before SwiftUI dismantles the shelf's responder
+    /// tree. macOS 27 (beta) can use-after-free in NSHostingView hover
+    /// hit-testing when a trailing mouseMoved arrives during window teardown.
+    func prepareForTeardown() {
+        isTearingDown = true
+        if let shelfTrackingArea {
+            removeTrackingArea(shelfTrackingArea)
+            self.shelfTrackingArea = nil
+        }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard !isTearingDown else { return }
+        super.mouseMoved(with: event)
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -160,15 +176,8 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
             store?.updateDropTargeted(false)
             return true
         }
-        let accepted = FileDropImporter.importFiles(from: sender.draggingPasteboard) { [weak store] event in
-            switch event {
-            case .imported(let urls): store?.add(urls: urls)
-            case .failed(let message): store?.onDropFailed?(message)
-            }
-        }
-        if accepted { store?.onDropAccepted?() }
-        store?.updateDropTargeted(false)
-        return accepted
+        guard let store else { return false }
+        return ShelfDropCoordinator.accept(sender.draggingPasteboard, into: store)
     }
 
     override func touchesBegan(with event: NSEvent) {

@@ -68,6 +68,8 @@ final class ExternalFileDragMonitor {
     var modifierActivationEnabled = true
     var activationModifier: ActivationModifier = .shift
     var sensitivity: ShakeSensitivity = .medium
+    /// Injectable for deterministic tests; production uses the wall clock.
+    var now: () -> Date = Date.init
 
     private let dragPasteboard: NSPasteboard
     private var globalMonitor: Any?
@@ -173,7 +175,7 @@ final class ExternalFileDragMonitor {
         guard shakeActivationEnabled else { return }
         if activationState.activateForShake(
             x: point.x,
-            date: Date(),
+            date: now(),
             sensitivity: sensitivity
         ) {
             onShake?()

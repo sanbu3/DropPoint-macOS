@@ -52,6 +52,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             modifiers: settings.shortcutAction == .spawn ? [.shift] : []
         )
         menu.addItem(newShelf)
+        menu.addItem(item("截取最近窗口（双 Command）", action: #selector(captureWindow)))
         let clipboard = item(
             "从剪贴板创建文件架",
             action: #selector(clipboardShelf),
@@ -74,6 +75,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             modifiers: settings.shortcutAction == .toggle ? [.shift] : []
         ))
         menu.addItem(item("关闭所有文件架", action: #selector(closeAll)))
+        menu.addItem(.separator())
+        addPinnedShelvesMenu()
+        addRecentShelvesMenu()
         menu.addItem(.separator())
         menu.addItem(item(
             "设置…",
@@ -104,7 +108,114 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         rebuildMenu()
     }
 
+    private func addPinnedShelvesMenu() {
+        let parent = NSMenuItem(title: "固定文件架", action: nil, keyEquivalent: "")
+        parent.image = symbol("pin")
+        let submenu = NSMenu(title: "固定文件架")
+        if settings.pinnedShelves.isEmpty {
+            let empty = NSMenuItem(title: "暂无固定文件架", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            submenu.addItem(empty)
+        } else {
+            for shelf in settings.pinnedShelves.prefix(10) {
+                let item = NSMenuItem(
+                    title: "\(shelf.displayName)（\(shelf.itemCount) 项）",
+                    action: #selector(restorePinnedMenuItem(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = shelf.id.uuidString
+                item.image = swatch(shelf.tint)
+                submenu.addItem(item)
+            }
+            submenu.addItem(.separator())
+            let clearPinned = NSMenuItem(
+                title: "清除全部固定记录",
+                action: #selector(clearPinnedShelves),
+                keyEquivalent: ""
+            )
+            clearPinned.target = self
+            submenu.addItem(clearPinned)
+        }
+        parent.submenu = submenu
+        menu.addItem(parent)
+    }
+
+    private func addRecentShelvesMenu() {
+        let parent = NSMenuItem(title: "最近关闭", action: nil, keyEquivalent: "")
+        parent.image = symbol("clock.arrow.circlepath")
+        let submenu = NSMenu(title: "最近关闭")
+        if settings.recentShelves.isEmpty {
+            let empty = NSMenuItem(title: "暂无历史", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            submenu.addItem(empty)
+        } else {
+            for shelf in settings.recentShelves.prefix(8) {
+                let item = NSMenuItem(
+                    title: "\(shelf.displayName)（\(shelf.subtitle)）",
+                    action: #selector(restoreRecentMenuItem(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = shelf.id.uuidString
+                item.image = swatch(shelf.tint)
+                submenu.addItem(item)
+            }
+            submenu.addItem(.separator())
+            let clearRecent = NSMenuItem(
+                title: "清空最近关闭",
+                action: #selector(clearRecentShelves),
+                keyEquivalent: ""
+            )
+            clearRecent.target = self
+            submenu.addItem(clearRecent)
+        }
+        parent.submenu = submenu
+        menu.addItem(parent)
+    }
+
+    private func symbol(_ name: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
+        image?.size = NSSize(width: 15, height: 15)
+        return image
+    }
+
+    private func swatch(_ tint: ShelfTint) -> NSImage {
+        let image = NSImage(size: NSSize(width: 12, height: 12))
+        image.lockFocus()
+        tint.nsColor.setFill()
+        NSBezierPath(ovalIn: NSRect(x: 1, y: 1, width: 10, height: 10)).fill()
+        image.unlockFocus()
+        return image
+    }
+
     @objc private func newShelf() { manager.spawn() }
+    @objc private func captureWindow() { manager.captureNearestWindowToShelf() }
+
+    @objc private func clearPinnedShelves() {
+        manager.clearAllPinnedShelves()
+        refresh()
+    }
+
+    @objc private func clearRecentShelves() {
+        manager.clearRecentShelves()
+        refresh()
+    }
+
+    @objc private func restorePinnedMenuItem(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String,
+              let id = UUID(uuidString: value),
+              let shelf = settings.pinnedShelves.first(where: { $0.id == id }) else { return }
+        manager.restorePinnedShelf(shelf)
+    }
+
+    @objc private func restoreRecentMenuItem(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String,
+              let id = UUID(uuidString: value),
+              let shelf = settings.recentShelves.first(where: { $0.id == id }) else { return }
+        manager.restoreRecentShelf(shelf)
+    }
     @objc private func toggleShelves() { manager.toggleShelves() }
     @objc private func closeAll() { manager.closeAll() }
     @objc private func showSettings() { manager.showSettings() }

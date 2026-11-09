@@ -5,6 +5,8 @@ import Observation
 @MainActor
 @Observable
 final class ShelfStore {
+    @ObservationIgnored let diagnosticID = String(UUID().uuidString.prefix(8))
+
     var items: [ShelfItem] = []
     var selectedIDs: Set<String> = []
     var isExpanded = false
@@ -26,11 +28,18 @@ final class ShelfStore {
     var keepsEmptyShelfAfterOptionClear = false
     private(set) var isClosed = false
 
+    /// User-facing shelf identity. Empty names fall back to a localised
+    /// default so pinned and recent shelves always have a readable title.
+    var shelfName = ""
+    var tint: ShelfTint = .blue
+    var pinnedShelfID: UUID?
+
     var dragAction: DragDefaultAction = .copy
     var doubleClickAction: FileDoubleClickAction = .open
     var autoCollapseExpanded = true
     var focusShelfOnShow = false
     var instantActionsEnabled = true
+    var showQuickActionBar = true
     var enabledActions = ShelfAction.defaultActions
     var customActions: [CustomShelfAction] = []
     var reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -39,6 +48,7 @@ final class ShelfStore {
     @ObservationIgnored var onClose: (() -> Void)?
     @ObservationIgnored var onCollapse: (() -> Void)?
     @ObservationIgnored var onExpansionChanged: ((Bool) -> Void)?
+    @ObservationIgnored var onInternalDragEnded: (() -> Void)?
     @ObservationIgnored var onInternalDragStateChanged: ((Bool) -> Void)?
     @ObservationIgnored var onPreviewRequested: ((URL) -> Void)?
     @ObservationIgnored var onDropAccepted: (() -> Void)?
@@ -46,6 +56,9 @@ final class ShelfStore {
     @ObservationIgnored var onDropSettled: (() -> Void)?
     @ObservationIgnored var onEmptied: (() -> Void)?
     @ObservationIgnored var onItemCountChanged: ((Int) -> Void)?
+    @ObservationIgnored var onItemsChanged: (() -> Void)?
+    @ObservationIgnored var onShelfMetadataChanged: (() -> Void)?
+    @ObservationIgnored var onPinRequested: (() -> Void)?
 
     @ObservationIgnored private var dragReturnedToShelf = false
     @ObservationIgnored private var draggedItemIDs: Set<String> = []
@@ -54,6 +67,18 @@ final class ShelfStore {
     @ObservationIgnored private var thumbnailTasks: [String: Task<Void, Never>] = [:]
 
     var visibleItems: ArraySlice<ShelfItem> { items.prefix(3) }
+
+    var displayTitle: String {
+        let trimmed = shelfName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "文件架" : trimmed
+    }
+
+    var compactTitle: String {
+        let trimmed = shelfName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? summary : trimmed
+    }
+
+    var isPinned: Bool { pinnedShelfID != nil }
 
     var selectedItems: [ShelfItem] {
         guard isExpanded else { return items }
@@ -104,6 +129,7 @@ final class ShelfStore {
         keepsEmptyShelfAfterOptionClear = false
         items.append(contentsOf: additions)
         onItemCountChanged?(items.count)
+        onItemsChanged?()
         loadThumbnails(for: additions)
         if selectedIDs.isEmpty, let first = items.first { selectedIDs.insert(first.id) }
         NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
@@ -166,6 +192,7 @@ final class ShelfStore {
         cancelThumbnailTasks(for: itemIDs)
         items.removeAll { itemIDs.contains($0.id) }
         onItemCountChanged?(items.count)
+        onItemsChanged?()
         selectedIDs.subtract(itemIDs)
         if selectedIDs.isEmpty, let first = items.first {
             selectedIDs.insert(first.id)
@@ -281,6 +308,7 @@ final class ShelfStore {
         cancelThumbnailTasks(for: ids)
         items.removeAll { ids.contains($0.id) }
         onItemCountChanged?(items.count)
+        onItemsChanged?()
         selectedIDs.subtract(ids)
         if items.count <= 1, isExpanded {
             isExpanded = false
@@ -296,11 +324,12 @@ final class ShelfStore {
     }
 
     func beginInternalDrag() {
-        guard !isDraggingOut else { return }
+        guard !isClosed, !isDraggingOut else { return }
         dragReturnedToShelf = false
         draggedItemIDs = isExpanded ? selectedIDs : Set(items.map(\.id))
         cancelThumbnailTasks(for: draggedItemIDs)
         isDraggingOut = true
+        DragDiagnostics.record("drag-began", store: self)
         onInternalDragStateChanged?(true)
     }
 
@@ -310,7 +339,9 @@ final class ShelfStore {
     }
 
     func finishInternalDrag(operation: NSDragOperation, keepOpen: Bool) {
-        guard isDraggingOut else { return }
+        guard !isClosed, isDraggingOut else { return }
+        DragDiagnostics.record("drag-ended", store: self)
+        defer { onInternalDragEnded?() }
         let draggedIDs = draggedItemIDs
         let moved = operation.contains(.move) && !dragReturnedToShelf
         draggedItemIDs.removeAll()
@@ -345,18 +376,139 @@ final class ShelfStore {
     }
 
     func cancelPendingWork() {
+        guard !isClosed else { return }
         isClosed = true
+        DragDiagnostics.record("shelf-closed", store: self)
+        if isDraggingOut {
+            isDraggingOut = false
+            draggedItemIDs.removeAll()
+            dragReturnedToShelf = false
+            onInternalDragStateChanged?(false)
+        }
         clearTask?.cancel()
         pullClearTask?.cancel()
         clearTask = nil
         pullClearTask = nil
         cancelThumbnailTasks(for: Set(thumbnailTasks.keys))
         isClearing = false
+        isDropTargeted = false
+        isHovered = false
         isPullClearing = false
         isDismissGestureActive = false
         dismissGestureProgress = 0
         isOptionClearActive = false
         optionClearProgress = 0
+    }
+
+    // MARK: - Shelf identity
+
+    func renameShelf(to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != shelfName else { return }
+        shelfName = trimmed
+        onShelfMetadataChanged?()
+    }
+
+    func promptRenameShelf() {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "重命名文件架"
+        alert.informativeText = "名称会显示在文件架和固定列表中。"
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "取消")
+        let field = NSTextField(string: displayTitle == "文件架" ? "" : displayTitle)
+        field.placeholderString = "例如：项目素材"
+        field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        renameShelf(to: field.stringValue)
+    }
+
+    func setTint(_ newTint: ShelfTint) {
+        guard tint != newTint else { return }
+        tint = newTint
+        onShelfMetadataChanged?()
+    }
+
+    func requestPinToggle() {
+        onPinRequested?()
+    }
+
+    // MARK: - Item management
+
+    func promptRenameSelected() {
+        guard let item = selectedItems.first, selectedItems.count == 1 else {
+            NSSound.beep()
+            return
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "重命名“\(item.name)”"
+        alert.informativeText = "请输入包含扩展名的新名称。原文件会在同一文件夹内重命名。"
+        alert.addButton(withTitle: "重命名")
+        alert.addButton(withTitle: "取消")
+        let field = NSTextField(string: item.name)
+        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let newName = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !newName.isEmpty, newName != item.name else { return }
+        guard !newName.contains("/") else {
+            presentError("名称不能包含斜杠“/”。")
+            return
+        }
+        let destination = item.url.deletingLastPathComponent().appendingPathComponent(newName)
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            presentError("同一文件夹中已存在“\(newName)”。")
+            return
+        }
+        do {
+            try FileManager.default.moveItem(at: item.url, to: destination)
+        } catch {
+            presentError(error.localizedDescription)
+            return
+        }
+        guard let index = items.firstIndex(where: { $0.id == item.id }),
+              let renamed = ShelfItem.make(url: destination) else { return }
+        cancelThumbnailTasks(for: [item.id])
+        items[index] = renamed
+        selectedIDs = [renamed.id]
+        loadThumbnails(for: [renamed])
+        onItemsChanged?()
+    }
+
+    func moveSelectedItems(by offset: Int) {
+        guard isExpanded, offset != 0 else { return }
+        let selectedIndices = items.indices.filter { selectedIDs.contains(items[$0].id) }
+        guard !selectedIndices.isEmpty,
+              let first = selectedIndices.first,
+              let last = selectedIndices.last,
+              selectedIndices.count == last - first + 1 else { return }
+        let target: Int
+        if offset < 0 {
+            target = max(0, first - 1)
+            guard target != first else { return }
+        } else {
+            target = min(items.count, last + 2)
+            guard target != last + 1 else { return }
+        }
+        let block = Array(items[first...last])
+        items.removeSubrange(first...last)
+        let insertionIndex = offset < 0 ? target : target - block.count
+        items.insert(contentsOf: block, at: max(0, min(insertionIndex, items.count)))
+        onItemsChanged?()
+    }
+
+    private func presentError(_ message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "无法完成操作"
+        alert.informativeText = message
+        alert.addButton(withTitle: "好")
+        alert.runModal()
     }
 
     private func loadThumbnails(for additions: [ShelfItem]) {
@@ -376,6 +528,7 @@ final class ShelfStore {
                     return
                 }
                 self.items[index] = preview
+                self.onItemsChanged?()
             }
         }
     }

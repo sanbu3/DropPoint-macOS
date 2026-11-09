@@ -2,3 +2,4 @@
 *.xcuserstate
 xcuserdata/
 DropPointNative 2.xcodeproj/
+dist/

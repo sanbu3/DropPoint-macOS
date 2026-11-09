@@ -10,6 +10,14 @@ final class ShelfPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .rightMouseDown {
+            if !NSApp.isActive {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            if !isKeyWindow {
+                makeKey()
+            }
+        }
         onGestureEvent?(event)
         switch event.type {
         case .leftMouseDown, .leftMouseDragged, .rightMouseDown, .keyDown, .scrollWheel:
@@ -48,7 +56,10 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     private var compactOrigin: NSPoint?
     private var snapWorkItem: DispatchWorkItem?
     private var closeKeyMonitor: Any?
-    private var isAnimatingOut = false
+    private var outDisposition: OutDisposition?
+    private var isAnimatingOut: Bool { outDisposition != nil }
+    private var pendingDragDisposition: OutDisposition?
+    private var hasClosed = false
     private var visibilityGeneration = 0
     private var isProgrammaticallyMoving = false
     private var programmaticMoveGeneration = 0
@@ -78,7 +89,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         panel.animationBehavior = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.level = alwaysOnTop ? .floating : .normal
-        panel.title = "DropPoint"
+        panel.title = store.displayTitle
 
         let hostingView = ShelfDropHostingView(store: store)
         hostingView.focusRingType = .none
@@ -87,6 +98,9 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         hostingView.frame = NSRect(origin: .zero, size: size)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        hostingView.layer?.cornerRadius = 25
+        hostingView.layer?.cornerCurve = .continuous
+        hostingView.layer?.masksToBounds = true
         panel.contentView = hostingView
 
         super.init(window: panel)
@@ -102,6 +116,15 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         store.onOptionClearPresentationChanged = { [weak self] in
             self?.updateOptionClearHint()
         }
+        store.onInternalDragEnded = { [weak self] in
+            // Leave AppKit's draggingSession(endedAt:) stack before detaching
+            // the source view and removing its window controller.
+            Task { @MainActor [weak self] in
+                guard let self, let disposition = self.pendingDragDisposition else { return }
+                self.pendingDragDisposition = nil
+                self.animateOut(disposition)
+            }
+        }
         panel.onPrecisionScroll = { [weak self] event in
             self?.handlePrecisionScroll(event) ?? false
         }
@@ -116,10 +139,14 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             self.onHoverChanged?(self, isInside)
         }
         closeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self,
-                  let eventWindow = event.window,
-                  eventWindow === self.window,
-                  Self.isCommandW(event) else { return event }
+            guard let self else { return event }
+            // A focused SwiftUI TextField may report a field-editor window
+            // rather than the shelf window. Once the palette is open, route
+            // its navigation keys from the controller so Escape, arrows and
+            // Return work from inside the search field too.
+            guard let eventWindow = event.window,
+                  eventWindow === self.window else { return event }
+            guard Self.isCommandW(event) else { return event }
             self.closeAnimated()
             return nil
         }
@@ -129,6 +156,16 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) { nil }
 
     var panel: NSPanel? { window as? NSPanel }
+
+    override func close() {
+        guard !hasClosed else { return }
+        if store.isDraggingOut {
+            DragDiagnostics.record("close-deferred-for-drag", store: store)
+            pendingDragDisposition = .close
+            return
+        }
+        super.close()
+    }
 
     func show(at origin: NSPoint, activating: Bool) {
         window?.setFrameOrigin(origin)
@@ -140,6 +177,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func orderOutAnimated() {
+        guard !hasClosed, pendingDragDisposition != .close else { return }
         cancelOptionHold()
         resetPullDownGesture()
         onWillDismiss?(self)
@@ -147,6 +185,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func closeAnimated() {
+        guard !hasClosed else { return }
         cancelOptionHold()
         resetPullDownGesture()
         onWillDismiss?(self)
@@ -155,6 +194,10 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
 
     func setAlwaysOnTop(_ enabled: Bool) {
         panel?.level = enabled ? .floating : .normal
+    }
+
+    func syncWindowTitle() {
+        window?.title = store.displayTitle
     }
 
     func move(to origin: NSPoint, duration: TimeInterval) {
@@ -186,7 +229,10 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     func setExpanded(_ expanded: Bool) {
         guard let window else { return }
         let targetSize = expanded
-            ? ShelfGeometry.expandedSize(itemCount: store.items.count)
+            ? ShelfGeometry.expandedSize(
+                itemCount: store.items.count,
+                showsQuickActionBar: store.showQuickActionBar
+            )
             : ShelfGeometry.compactSize
         if expanded, compactOrigin == nil { compactOrigin = window.frame.origin }
 
@@ -206,6 +252,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         } ?? preferredOrigin
 
         let targetFrame = NSRect(origin: origin, size: targetSize)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["DROPPOINT_SNAPSHOT_DIR"] != nil {
+            NSLog("SNAP expand=\(expanded) before=\(window.frame) target=\(targetFrame)")
+        }
+        #endif
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             window.setFrame(targetFrame, display: true)
         } else {
@@ -220,7 +271,10 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
 
     func updateExpandedSize(for itemCount: Int) {
         guard store.isExpanded, let window, let screen = window.screen else { return }
-        let targetSize = ShelfGeometry.expandedSize(itemCount: itemCount)
+        let targetSize = ShelfGeometry.expandedSize(
+            itemCount: itemCount,
+            showsQuickActionBar: store.showQuickActionBar
+        )
         guard window.frame.size != targetSize else { return }
         let origin = ShelfGeometry.resizedOrigin(
             frame: window.frame,
@@ -228,6 +282,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             in: screen.visibleFrame
         )
         let targetFrame = NSRect(origin: origin, size: targetSize)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["DROPPOINT_SNAPSHOT_DIR"] != nil {
+            NSLog("SNAP update-size count=\(itemCount) frame=\(window.frame) target=\(targetFrame)")
+        }
+        #endif
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             window.setFrame(targetFrame, display: true)
         } else {
@@ -251,6 +310,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         store.isKeyboardNavigating = false
         if store.autoCollapseExpanded, store.isExpanded,
            isPreviewActive?() != true {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["DROPPOINT_SNAPSHOT_DIR"] != nil {
+                NSLog("SNAP resign-key collapse")
+            }
+            #endif
             store.toggleExpanded()
         }
     }
@@ -276,6 +340,13 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        guard !hasClosed else { return }
+        hasClosed = true
+        pendingDragDisposition = nil
+        store.onInternalDragEnded = nil
+        // Stop hover dispatch before SwiftUI dismantles the responder tree,
+        // avoiding the macOS 27 beta use-after-free in hover hit-testing.
+        (window?.contentView as? ShelfDropHostingView)?.prepareForTeardown()
         cancelOptionHold()
         store.onOptionClearPresentationChanged = nil
         store.cancelPendingWork()
@@ -287,9 +358,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func showWindowAnimated(activating: Bool) {
-        guard let window else { return }
+        guard !hasClosed, !store.isClosed, pendingDragDisposition != .close,
+              outDisposition != .close, let window else { return }
+        pendingDragDisposition = nil
         visibilityGeneration += 1
-        isAnimatingOut = false
+        outDisposition = nil
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let contentLayer = prepareContentLayer()
 
@@ -336,12 +409,22 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func animateOut(_ disposition: OutDisposition) {
-        guard let window, !isAnimatingOut else { return }
+        guard !hasClosed else { return }
+        if store.isDraggingOut {
+            if pendingDragDisposition != .close { pendingDragDisposition = disposition }
+            return
+        }
+        guard let window else { return }
+        if isAnimatingOut {
+            // A close request must upgrade an in-flight hide, never be lost.
+            if disposition == .close { outDisposition = .close }
+            return
+        }
         guard window.isVisible else {
             finishOut(disposition, restoring: window.frame.origin)
             return
         }
-        isAnimatingOut = true
+        outDisposition = disposition
         store.isHovered = false
         visibilityGeneration += 1
         let generation = visibilityGeneration
@@ -380,7 +463,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
                 guard let self, self.visibilityGeneration == generation,
                       let window = self.window else { return }
                 window.orderOut(nil)
-                self.finishOut(disposition, restoring: originalOrigin)
+                self.finishOut(self.outDisposition ?? disposition, restoring: originalOrigin)
             }
         }
     }
@@ -390,9 +473,9 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         case .hide:
             window?.setFrameOrigin(originalOrigin)
             window?.alphaValue = 1
-            isAnimatingOut = false
+            outDisposition = nil
         case .close:
-            isAnimatingOut = false
+            outDisposition = nil
             close()
         }
     }

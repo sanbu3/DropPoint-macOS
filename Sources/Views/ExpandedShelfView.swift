@@ -27,6 +27,14 @@ struct ExpandedShelfView: View {
                 .frame(height: 1)
                 .padding(.horizontal, 16)
 
+            if store.showQuickActionBar {
+                ShelfQuickActionBar(store: store, palette: palette)
+                Rectangle()
+                    .fill(palette.divider)
+                    .frame(height: 1)
+                    .padding(.horizontal, 16)
+            }
+
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {
                     Text("文件")
@@ -107,7 +115,7 @@ private struct ExpandedShelfHeader: View {
             Button(action: store.toggleExpanded) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 13, weight: .bold))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 30, height: 30)
                     .background(palette.control, in: Circle())
                     .overlay(Circle().stroke(palette.edge, lineWidth: 1))
                     .contentShape(Circle())
@@ -117,9 +125,25 @@ private struct ExpandedShelfHeader: View {
             .help("收起文件列表")
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("文件架")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .tracking(-0.25)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(palette.accent)
+                        .frame(width: 6, height: 6)
+                    Text(store.displayTitle)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .tracking(-0.25)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) { store.promptRenameShelf() }
+                        .help("双击重命名文件架")
+                    if store.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(palette.accent)
+                            .help("已固定")
+                    }
+                }
 
                 Text(selectionSummary)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -131,49 +155,46 @@ private struct ExpandedShelfHeader: View {
                     )
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
 
-            if !store.selectedIDs.isEmpty {
-                HStack(spacing: 4) {
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting(
-                            store.selectedItems.map(\.url)
-                        )
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "folder")
-                                .font(.system(size: 9, weight: .semibold))
-                            Text("在 Finder 中显示")
-                        }
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(palette.accent)
-                        .padding(.horizontal, 8)
-                        .frame(height: 24)
-                        .background(palette.accentSurface, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .shelfFocusRing(Capsule(), color: palette.accent)
-                    .help("在 Finder 中显示选中的文件")
-
-                    Button {
-                        store.removeSelected()
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 9, weight: .semibold))
-                            Text("移除")
-                        }
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(palette.danger)
-                        .padding(.horizontal, 8)
-                        .frame(height: 24)
-                        .background(palette.danger.opacity(0.12), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .shelfFocusRing(Capsule(), color: palette.danger)
-                    .help("从文件架中移除选中的文件")
+            Menu {
+                Button {
+                    store.promptRenameShelf()
+                } label: {
+                    Label("重命名文件架…", systemImage: "pencil")
                 }
+                Button {
+                    store.requestPinToggle()
+                } label: {
+                    Label(
+                        store.isPinned ? "取消固定文件架" : "固定文件架",
+                        systemImage: store.isPinned ? "pin.slash" : "pin"
+                    )
+                }
+                Divider()
+                Menu("文件架颜色") {
+                    ForEach(ShelfTint.allCases) { tint in
+                        Button {
+                            store.setTint(tint)
+                        } label: {
+                            HStack {
+                                Image(systemName: tint == store.tint ? "checkmark" : "circle.fill")
+                                Text(tint.title)
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+                    .frame(width: 26, height: 26)
+                    .contentShape(Circle())
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("文件架设置与操作")
         }
         .frame(height: 52)
         .padding(.leading, 16)
@@ -196,8 +217,7 @@ private struct ExpandedFileTile: View {
     private var selected: Bool { store.selectedIDs.contains(item.id) }
 
     var body: some View {
-        VStack(spacing: 4) {
-            ZStack {
+        ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(tileBackground)
                     .overlay {
@@ -247,14 +267,8 @@ private struct ExpandedFileTile: View {
                 .padding(.bottom, 7)
 
             }
-            .frame(maxWidth: .infinity, minHeight: 104, maxHeight: 104)
+            .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112)
             .opacity(store.isDraggingOut && selected ? 0 : 1)
-
-            Capsule()
-                .fill(selected ? palette.accent : .clear)
-                .frame(width: 38, height: 4)
-                .accessibilityHidden(true)
-        }
         .frame(minHeight: 112, maxHeight: 112)
         .contentShape(.rect(cornerRadius: 14, style: .continuous))
         .onHover { hovered = $0 }

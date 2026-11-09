@@ -29,6 +29,14 @@ enum ShelfContextMenuFactory {
                                selector: #selector(ShelfContextMenuHandler.previewFiles), handler: handler)
             preview.isEnabled = hasSelection
             viewing.append(preview)
+            if hasSelection, store.selectedItems.count == 1 {
+                let rename = item(title: "重命名项目…", symbol: "pencil",
+                                  selector: #selector(ShelfContextMenuHandler.renameSelectedItem), handler: handler)
+                viewing.append(rename)
+            }
+            if hasSelection, let openWith = openWithMenu(for: store, handler: handler) {
+                viewing.append(openWith)
+            }
             appendGroup(viewing)
             appendGroup(enabled.filter { [.airDrop, .messages, .mail].contains($0) }.map(actionItem))
             appendGroup(enabled.filter { [.copyPaths, .copyTo, .moveTo].contains($0) }.map(actionItem))
@@ -52,6 +60,35 @@ enum ShelfContextMenuFactory {
             appendGroup(enabled.filter { $0 == .trash }.map(actionItem))
         }
 
+        var identityItems: [NSMenuItem] = []
+        let renameShelf = item(title: "重命名文件架…", symbol: "pencil",
+                               selector: #selector(ShelfContextMenuHandler.renameShelf), handler: handler)
+        identityItems.append(renameShelf)
+        let colors = NSMenuItem(title: "文件架颜色", action: nil, keyEquivalent: "")
+        colors.image = symbol("paintpalette")
+        let colorMenu = NSMenu(title: "文件架颜色")
+        configure(colorMenu)
+        for tint in ShelfTint.allCases {
+            let colorItem = NSMenuItem(title: tint.title,
+                                       action: #selector(ShelfContextMenuHandler.setTint(_:)),
+                                       keyEquivalent: "")
+            colorItem.target = handler
+            colorItem.representedObject = tint.rawValue
+            colorItem.image = tintSwatch(tint)
+            colorItem.state = tint == store.tint ? .on : .off
+            colorMenu.addItem(colorItem)
+        }
+        colors.submenu = colorMenu
+        identityItems.append(colors)
+        let pin = item(
+            title: store.isPinned ? "取消固定文件架" : "固定文件架",
+            symbol: store.isPinned ? "pin.slash" : "pin",
+            selector: #selector(ShelfContextMenuHandler.togglePin),
+            handler: handler
+        )
+        identityItems.append(pin)
+        appendGroup(identityItems)
+
         let clear = item(title: "清空文件架", symbol: "clear",
                          selector: #selector(ShelfContextMenuHandler.clearShelf), handler: handler)
         clear.isEnabled = !store.items.isEmpty && !store.isClosed && !store.isClearing && !store.isPullClearing
@@ -64,10 +101,58 @@ enum ShelfContextMenuFactory {
                               selector: #selector(ShelfContextMenuHandler.removeSelection), handler: handler)
             remove.isEnabled = hasSelection
             shelfItems.append(remove)
+            let up = item(title: "上移", symbol: "arrow.up",
+                          selector: #selector(ShelfContextMenuHandler.moveSelectionUp), handler: handler)
+            up.isEnabled = hasSelection
+            shelfItems.append(up)
+            let down = item(title: "下移", symbol: "arrow.down",
+                            selector: #selector(ShelfContextMenuHandler.moveSelectionDown), handler: handler)
+            down.isEnabled = hasSelection
+            shelfItems.append(down)
         }
         shelfItems.append(contentsOf: [clear, hide])
         appendGroup(shelfItems)
         return menu
+    }
+
+    private static func openWithMenu(
+        for store: ShelfStore,
+        handler: ShelfContextMenuHandler
+    ) -> NSMenuItem? {
+        guard let url = store.selectedItems.first?.url else { return nil }
+        let applications = NSWorkspace.shared
+            .urlsForApplications(toOpen: url)
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        guard !applications.isEmpty else { return nil }
+        let parent = NSMenuItem(title: "打开方式", action: nil, keyEquivalent: "")
+        parent.image = symbol("arrow.up.forward.app")
+        let submenu = NSMenu(title: "打开方式")
+        configure(submenu)
+        for application in applications.prefix(12) {
+            let appItem = NSMenuItem(
+                title: application.deletingPathExtension().lastPathComponent,
+                action: #selector(ShelfContextMenuHandler.openWith(_:)),
+                keyEquivalent: ""
+            )
+            appItem.target = handler
+            appItem.representedObject = application
+            let icon = NSWorkspace.shared.icon(forFile: application.path)
+            icon.size = NSSize(width: 16, height: 16)
+            appItem.image = icon
+            submenu.addItem(appItem)
+        }
+        parent.submenu = submenu
+        return parent
+    }
+
+    private static func tintSwatch(_ tint: ShelfTint) -> NSImage {
+        let image = NSImage(size: NSSize(width: 14, height: 14))
+        image.lockFocus()
+        tint.nsColor.setFill()
+        NSBezierPath(ovalIn: NSRect(x: 1, y: 1, width: 12, height: 12)).fill()
+        image.unlockFocus()
+        image.isTemplate = false
+        return image
     }
 
     private static func configure(_ menu: NSMenu) {
@@ -130,4 +215,31 @@ private final class ShelfContextMenuHandler: NSObject {
     @objc func previewFiles() { _ = store.previewSelection() }
     @objc func clearShelf() { store.clear() }
     @objc func hideShelf() { store.onCollapse?() }
+    @objc func renameSelectedItem() { store.promptRenameSelected() }
+    @objc func renameShelf() { store.promptRenameShelf() }
+    @objc func togglePin() { store.requestPinToggle() }
+    @objc func moveSelectionUp() { store.moveSelectedItems(by: -1) }
+    @objc func moveSelectionDown() { store.moveSelectedItems(by: 1) }
+
+    @objc func setTint(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let tint = ShelfTint(rawValue: rawValue) else { return }
+        store.setTint(tint)
+    }
+
+    @objc func openWith(_ sender: NSMenuItem) {
+        guard let application = sender.representedObject as? URL else { return }
+        let urls = store.selectedItems.map(\.url)
+        for url in urls {
+            NSWorkspace.shared.open(
+                [url],
+                withApplicationAt: application,
+                configuration: NSWorkspace.OpenConfiguration()
+            ) { _, error in
+                if let error {
+                    NSLog("DropPoint: open with failed: %@", error.localizedDescription)
+                }
+            }
+        }
+    }
 }

@@ -24,7 +24,8 @@ struct CompactFileShelfView: View {
 
             itemChip
                 .position(x: 99, y: 173)
-                .opacity(1 - min(max((pullProgress - 0.82) / 0.18, 0), 1))
+                .opacity(store.isDraggingOut ? 0 : 1 - min(max((pullProgress - 0.82) / 0.18, 0), 1))
+                .allowsHitTesting(!store.isDraggingOut)
         }
         .allowsHitTesting(!store.isDismissGestureActive && !store.isPullClearing)
         .animation(
@@ -58,12 +59,23 @@ struct CompactFileShelfView: View {
         Button {
             store.toggleExpanded()
         } label: {
-            HStack(spacing: 2) {
-                if store.items.count == 1 {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(palette.accent)
+                    .frame(width: 5, height: 5)
+                if store.items.count == 1 && store.shelfName.isEmpty {
                     MarqueeFileName(text: store.summary, width: 81)
+                } else if !store.shelfName.isEmpty {
+                    MarqueeFileName(text: store.compactTitle, width: 78)
                 } else {
                     Text(store.summary)
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                if store.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(palette.accent)
                 }
                 if store.items.count > 1 {
                     Image(systemName: "chevron.right")
@@ -73,7 +85,7 @@ struct CompactFileShelfView: View {
             .font(.system(size: 12, weight: .medium, design: .rounded))
             .foregroundStyle(palette.ink)
             .padding(.horizontal, 10)
-            .frame(minWidth: store.items.count > 1 ? 47 : nil, minHeight: 28, maxHeight: 28)
+            .frame(minWidth: store.items.count > 1 ? 52 : nil, minHeight: 28, maxHeight: 28)
             .fixedSize(horizontal: true, vertical: false)
             .background(palette.control, in: Capsule())
             .overlay(Capsule().stroke(palette.edge, lineWidth: 1))
@@ -82,7 +94,7 @@ struct CompactFileShelfView: View {
         .buttonStyle(.plain)
         .shelfFocusRing(Capsule(), color: palette.accent)
         .disabled(store.items.count <= 1)
-        .help(store.summary)
+        .help("\(store.displayTitle) · \(store.summary)")
     }
 }
 

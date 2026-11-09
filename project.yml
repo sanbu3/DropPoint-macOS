@@ -16,6 +16,10 @@ targets:
     platform: macOS
     sources:
       - path: Sources
+      - path: Resources/Cat_in_Box Timeline.png
+        buildPhase: resources
+      - path: Resources/Empty Box Timeline.png
+        buildPhase: resources
       - path: Resources/CatInBox.png
         buildPhase: resources
       - path: Resources/Cat_in_Box.svg
@@ -31,8 +35,8 @@ targets:
         PRODUCT_NAME: DropPoint
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Resources/Info.plist
-        MARKETING_VERSION: 1.5.4
-        CURRENT_PROJECT_VERSION: 8
+        MARKETING_VERSION: 2.0.2
+        CURRENT_PROJECT_VERSION: 11
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
