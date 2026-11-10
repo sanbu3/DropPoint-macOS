@@ -95,6 +95,7 @@ struct CompactFileShelfView: View {
         .shelfFocusRing(Capsule(), color: palette.accent)
         .disabled(store.items.count <= 1)
         .dropPointHelp("\(store.displayTitle) · \(store.summary)")
+        .nativeShelfAction("展开文件列表", enabled: store.items.count > 1 && !store.isDraggingOut, action: store.toggleExpanded)
     }
 }
 

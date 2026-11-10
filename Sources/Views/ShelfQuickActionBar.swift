@@ -71,6 +71,7 @@ struct ShelfQuickActionBar: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .dropPointHelp("更多操作")
+                .nativeShelfMenu("更多操作") { ShelfContextMenuFactory.make(for: store) }
             }
 
         }
@@ -100,6 +101,7 @@ struct ShelfQuickActionBar: View {
         .disabled(!hasSelection)
         .dropPointHelp(action.title)
         .accessibilityLabel(action.title)
+        .nativeShelfAction(action.title, enabled: hasSelection) { store.perform(action) }
     }
 
     private func shortTitle(_ action: ShelfAction) -> String {

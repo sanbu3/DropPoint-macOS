@@ -64,6 +64,10 @@ struct ExpandedShelfView: View {
                         .buttonStyle(.plain)
                         .shelfFocusRing(Capsule(), color: palette.accent)
                         .foregroundStyle(palette.accent)
+                        .nativeShelfAction(store.selectedIDs.count == store.items.count ? "取消全选" : "全选") {
+                            if store.selectedIDs.count == store.items.count { store.selectedIDs.removeAll() }
+                            else { store.selectedIDs = Set(store.items.map(\.id)) }
+                        }
                     }
                 }
                 .frame(height: 17)
@@ -123,6 +127,7 @@ private struct ExpandedShelfHeader: View {
             .buttonStyle(.plain)
             .shelfFocusRing(Circle(), color: palette.accent)
             .dropPointHelp("收起文件列表")
+            .nativeShelfAction("收起文件列表", action: store.toggleExpanded)
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
@@ -136,6 +141,7 @@ private struct ExpandedShelfHeader: View {
                         .truncationMode(.middle)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) { store.promptRenameShelf() }
+                        .nativeShelfRename(store.promptRenameShelf)
                         .dropPointHelp("双击重命名文件架")
                     if store.isPinned {
                         Image(systemName: "pin.fill")
@@ -195,6 +201,7 @@ private struct ExpandedShelfHeader: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .dropPointHelp("文件架设置与操作")
+            .nativeShelfMenu("文件架设置与操作") { ShelfContextMenuFactory.make(for: store) }
         }
         .frame(height: 52)
         .padding(.leading, 16)

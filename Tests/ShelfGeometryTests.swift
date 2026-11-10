@@ -335,6 +335,36 @@ final class FileDropImporterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
     }
 
+    func testLazilySuppliedImageSurvivesPasteboardReplacementAfterAccept() async throws {
+        final class ImageProvider: NSObject, NSPasteboardItemDataProvider {
+            let data: Data
+            init(data: Data) { self.data = data }
+            func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
+                item.setData(data, forType: type)
+            }
+        }
+        let image = NSImage(size: NSSize(width: 32, height: 32))
+        image.lockFocus(); NSColor.systemBlue.setFill(); NSRect(x: 0, y: 0, width: 32, height: 32).fill(); image.unlockFocus()
+        let provider = ImageProvider(data: try XCTUnwrap(image.tiffRepresentation))
+        let item = NSPasteboardItem()
+        item.setDataProvider(provider, forTypes: [.tiff])
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        XCTAssertTrue(board.writeObjects([item]))
+        let received = expectation(description: "lazy image copied before source disappears")
+        var imported: [URL] = []
+        XCTAssertTrue(FileDropImporter.importFiles(from: board) { event in
+            if case .imported(let urls) = event { imported = urls }
+            received.fulfill()
+        })
+        board.clearContents()
+        await fulfillment(of: [received], timeout: 5)
+        let url = try XCTUnwrap(imported.first)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        XCTAssertNotNil(NSImage(contentsOf: url))
+        withExtendedLifetime(provider) {}
+    }
+
     func testDirectJPEGDragIsRegisteredRecognizedAndImported() async throws {
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }
@@ -1541,7 +1571,7 @@ final class ShelfDropHitTestingTests: XCTestCase {
         let closeLocation = NSPoint(x: hosting.bounds.width - 21,
                                     y: hosting.isFlipped ? 21 : hosting.bounds.height - 21)
         let closeHit = try XCTUnwrap(hosting.hitTest(hosting.convert(closeLocation, to: hosting.superview)))
-        XCTAssertFalse(closeHit is DragPassThroughNSView, "close control must retain SwiftUI pointer routing")
+        XCTAssertFalse(closeHit is DragPassThroughNSView, "close control must remain independently clickable")
 
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }

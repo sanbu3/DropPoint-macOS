@@ -66,15 +66,30 @@ enum FileDropImporter {
         from pasteboard: NSPasteboard,
         completion: @MainActor @escaping @Sendable (ImportEvent) -> Void
     ) -> Bool {
+        let importID = String(UUID().uuidString.prefix(8))
+        AppDiagnostics.record("import-start", category: "Import", fields: [
+            "import": importID,
+            "types": (pasteboard.types ?? []).prefix(32).map { String($0.rawValue.prefix(160)) }.joined(separator: ","),
+            "items": String(pasteboard.pasteboardItems?.count ?? 0)])
+        let deliver: @MainActor @Sendable (ImportEvent) -> Void = { event in
+            switch event {
+            case .imported(let urls):
+                AppDiagnostics.record("import-completed", category: "Import", fields: ["import": importID, "count": String(urls.count)])
+            case .failed:
+                AppDiagnostics.record("import-failed", category: "Import", fields: ["import": importID])
+            }
+            completion(event)
+        }
         // Copy pasteboard payloads while the drag owns them; encode and write off the main thread.
         if let urls = pasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
         ) as? [URL], !urls.isEmpty {
+            AppDiagnostics.record("import-file-urls", category: "Import", fields: ["import": importID, "count": String(urls.count)])
             importQueue.addOperation {
                 let existing = urls.filter { $0.isFileURL && FileManager.default.fileExists(atPath: $0.path) }
                 Task { @MainActor in
-                    completion(existing.isEmpty
+                    deliver(existing.isEmpty
                         ? .failed("拖入的文件已被移动、删除或暂时无法访问。")
                         : .imported(existing))
                 }
@@ -85,15 +100,16 @@ enum FileDropImporter {
         if let promises = pasteboard.readObjects(
             forClasses: [NSFilePromiseReceiver.self]
         ) as? [NSFilePromiseReceiver], !promises.isEmpty {
+            AppDiagnostics.record("import-file-promises", category: "Import", fields: ["import": importID, "count": String(promises.count)])
             Task {
                 let destination = await Task.detached(priority: .utility) { makeImportDirectory() }.value
                 guard let destination else {
-                    completion(.failed("无法创建拖入文件的保存目录。"))
+                    deliver(.failed("无法创建拖入文件的保存目录。"))
                     return
                 }
                 let delivery = FilePromiseDelivery(
                     remaining: promises.reduce(0) { $0 + max(1, $1.fileNames.count) },
-                    completion: completion
+                    completion: deliver
                 )
                 for promise in promises {
                     promise.receivePromisedFiles(
@@ -113,25 +129,30 @@ enum FileDropImporter {
         }
 
         for type in imageDataTypes {
+            guard pasteboard.availableType(from: [type]) != nil else { continue }
+            AppDiagnostics.record("import-image-read", category: "Import", fields: ["import": importID, "type": type.rawValue])
             guard let data = pasteboard.data(forType: type) else { continue }
+            AppDiagnostics.record("import-image-copied", category: "Import", fields: ["import": importID, "bytes": String(data.count)])
             importQueue.addOperation {
                 let url = writePNG(data)
                 Task { @MainActor in
-                    completion(url.map { .imported([$0]) } ?? .failed("无法读取或保存拖入的图片。"))
+                    deliver(url.map { .imported([$0]) } ?? .failed("无法读取或保存拖入的图片。"))
                 }
             }
             return true
         }
 
         if let sourceURL = webURL(from: pasteboard) {
+            AppDiagnostics.record("import-web-link", category: "Import", fields: ["import": importID])
             importQueue.addOperation {
                 let url = writeWebLocation(sourceURL)
                 Task { @MainActor in
-                    completion(url.map { .imported([$0]) } ?? .failed("无法保存拖入的链接。"))
+                    deliver(url.map { .imported([$0]) } ?? .failed("无法保存拖入的链接。"))
                 }
             }
             return true
         }
+        AppDiagnostics.record("import-unsupported", category: "Import", fields: ["import": importID])
         return false
     }
 

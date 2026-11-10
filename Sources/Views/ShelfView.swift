@@ -439,6 +439,7 @@ private struct ShelfControlButton: View {
         .opacity(hovered ? 0.95 : (danger ? 0.78 : 0.56))
         .background(NativeHoverRegion(onChange: { hovered = $0 }).allowsHitTesting(false))
         .dropPointHelp(label)
+        .nativeShelfAction(label, action: action)
     }
 }
 

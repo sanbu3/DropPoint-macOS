@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDiagnostics.record("application-start")
-        if #available(macOS 27, *) { AppDiagnostics.record("native-hover-and-tooltip-compatibility-enabled", category: "Window") }
+        if #available(macOS 27, *) { AppDiagnostics.record("native-shelf-routing-compatibility-enabled", category: "Window") }
         diagnosticsWatchdog.start()
         AppDiagnostics.record("permission-initial-state", category: "Permission", fields: [
             "input": String(describing: inputMonitoringPermission.state),

@@ -11,6 +11,8 @@ final class ShelfPanel: NSPanel {
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown || event.type == .rightMouseDown {
+            AppDiagnostics.record("shelf-pointer-down", category: "Window", fields: [
+                "window": String(windowNumber), "contentClass": contentView.map { String(describing: type(of: $0)) } ?? "none"])
             if !NSApp.isActive {
                 NSApp.activate(ignoringOtherApps: true)
             }
@@ -93,7 +95,6 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
 
         let hostingView = ShelfDropHostingView(store: store)
         hostingView.focusRingType = .none
-        hostingView.sizingOptions = []
         hostingView.autoresizingMask = [.width, .height]
         hostingView.frame = NSRect(origin: .zero, size: size)
         hostingView.wantsLayer = true

@@ -11,6 +11,7 @@
 		04E9EBA53973E1D0BC911BAB /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A4A57EE58703C0EF70B7AA /* ClipboardService.swift */; };
 		06DA6A4EF0CADFBDE8BFAA32 /* DropPointLogo.svg in Resources */ = {isa = PBXBuildFile; fileRef = C2FEBA3176F83A868761DCFC /* DropPointLogo.svg */; };
 		13AAC37CE43B0CEF8634F5D2 /* WindowScreenshotSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BA9E0F18A579244979FDBE /* WindowScreenshotSmokeTests.swift */; };
+		1C070F2CB181538C5FA17D63 /* ShelfRenderingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DCF870B5B0FB604971CD7B /* ShelfRenderingView.swift */; };
 		1C4906749382E2925A0486B0 /* NativeTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFE4754564846B0827AD0BF /* NativeTooltip.swift */; };
 		20F02B96F51F13B9E4EF6CA5 /* PermissionGuideTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261650BAA90BE7B599BDC1B6 /* PermissionGuideTests.swift */; };
 		242FF4C03E5A443E28833862 /* InputMonitoringPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB01643E4205F7818E44590D /* InputMonitoringPermissionService.swift */; };
@@ -34,6 +35,7 @@
 		663345649DA2B141E83FBC1F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 29115A3051D5B2B4E5905DF1 /* Assets.xcassets */; };
 		6AC0AF7D2F1B80F3E0132A4B /* ImageCompressionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19549E5672298F1AF28F0E66 /* ImageCompressionService.swift */; };
 		7ACAAF8E38F6BE1AF3BA6D57 /* ShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5592D69D2AF2F44E09E094FB /* ShelfView.swift */; };
+		837F24869F4681823D9F2767 /* NativeShelfRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF229171889DE7C7B4B301E9 /* NativeShelfRoutingTests.swift */; };
 		842B6FE264E2839B6C18DF4D /* ShelfPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DFF537C897D5495B17AE0E /* ShelfPalette.swift */; };
 		8A2ECEE1B29A77148A0B2570 /* ShelfItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60444CC808E3CC2338FE8C1 /* ShelfItem.swift */; };
 		8D33A0855465213F480B8A1D /* NativeHoverRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD731C88FCBBE52F4E3345F /* NativeHoverRegion.swift */; };
@@ -50,6 +52,7 @@
 		B540C6FA82F6FD26FF3F58F4 /* AppDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE69F3894EB2C6A5DBE88DA /* AppDiagnostics.swift */; };
 		B744857ECFAADC1F7EC32DF7 /* OptionClearHintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77921235DFE3658CABA0F2F8 /* OptionClearHintView.swift */; };
 		B9341FBC5A4DAE61BD8C8991 /* AppRelaunchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA2B098F44579DD07A59E957 /* AppRelaunchService.swift */; };
+		BB334026AD0B1D54ECD7DD29 /* NativeShelfControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = B02D5D7FF65511CE65967001 /* NativeShelfControls.swift */; };
 		BDC1C452D7ABF32F69874617 /* ShelfGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEC6FD5A62755C0940C6677 /* ShelfGeometryTests.swift */; };
 		C5B43D9F33FB4B646279C085 /* ShelfActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5878A133EF3ADA9F52C44FBB /* ShelfActionService.swift */; };
 		C7EB8A06AC488AF2EE3C0DB3 /* ReleaseRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B811AF48AF53893BFD5CE42 /* ReleaseRegressionTests.swift */; };
@@ -129,12 +132,14 @@
 		A6B0A56BCF34E9878EEBB5C8 /* Empty Box Timeline.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Empty Box Timeline.png"; sourceTree = "<group>"; };
 		A70CEC862665A410BACE399E /* SettingsGlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGlassComponents.swift; sourceTree = "<group>"; };
 		AB01643E4205F7818E44590D /* InputMonitoringPermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputMonitoringPermissionService.swift; sourceTree = "<group>"; };
+		B02D5D7FF65511CE65967001 /* NativeShelfControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeShelfControls.swift; sourceTree = "<group>"; };
 		BAF3641498F04C920169147B /* WindowScreenshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScreenshotService.swift; sourceTree = "<group>"; };
 		BD764C3F09D849C7474D1682 /* PermissionGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGuideView.swift; sourceTree = "<group>"; };
 		C2FEBA3176F83A868761DCFC /* DropPointLogo.svg */ = {isa = PBXFileReference; path = DropPointLogo.svg; sourceTree = "<group>"; };
 		C368EF9A81E41BA63A5F4FDD /* Empty Box.svg */ = {isa = PBXFileReference; path = "Empty Box.svg"; sourceTree = "<group>"; };
 		CA2B098F44579DD07A59E957 /* AppRelaunchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRelaunchService.swift; sourceTree = "<group>"; };
 		CCD2A448DA69D1A72B4DF1FA /* ShelfWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfWindowManager.swift; sourceTree = "<group>"; };
+		CF229171889DE7C7B4B301E9 /* NativeShelfRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeShelfRoutingTests.swift; sourceTree = "<group>"; };
 		D210AB8CC87D9C277E22DF73 /* GlobalHotKeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKeyMonitor.swift; sourceTree = "<group>"; };
 		D2759316D14BC6C75C197F24 /* AnimatedShelfArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedShelfArtwork.swift; sourceTree = "<group>"; };
 		D4D3CA4AAF812B40F6777B8A /* ArtworkPlaybackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkPlaybackTests.swift; sourceTree = "<group>"; };
@@ -143,6 +148,7 @@
 		D6EA388EDA98B6B069CCBB80 /* NativeTooltipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTooltipTests.swift; sourceTree = "<group>"; };
 		D7C7ECB26F075D2FE5D60A67 /* ShelfAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfAction.swift; sourceTree = "<group>"; };
 		DEAE2C9FD948EB9826166429 /* ShelfGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfGeometry.swift; sourceTree = "<group>"; };
+		E2DCF870B5B0FB604971CD7B /* ShelfRenderingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfRenderingView.swift; sourceTree = "<group>"; };
 		E4430FA0D50EFFCAED4C1CD8 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
 		E8BE7B91D23778BA7DBF3109 /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
 		ECE69F3894EB2C6A5DBE88DA /* AppDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDiagnostics.swift; sourceTree = "<group>"; };
@@ -205,6 +211,7 @@
 				35F0CFE68F23B9F6D277B5AA /* DiagnosticsTests.swift */,
 				D533C750195C1D3F7446A547 /* DragLifecycleTests.swift */,
 				71DCD26D7CAF6D6713946D4B /* HoverTeardownTests.swift */,
+				CF229171889DE7C7B4B301E9 /* NativeShelfRoutingTests.swift */,
 				D6EA388EDA98B6B069CCBB80 /* NativeTooltipTests.swift */,
 				261650BAA90BE7B599BDC1B6 /* PermissionGuideTests.swift */,
 				0B811AF48AF53893BFD5CE42 /* ReleaseRegressionTests.swift */,
@@ -258,6 +265,7 @@
 			isa = PBXGroup;
 			children = (
 				FCD731C88FCBBE52F4E3345F /* NativeHoverRegion.swift */,
+				B02D5D7FF65511CE65967001 /* NativeShelfControls.swift */,
 				0DFE4754564846B0827AD0BF /* NativeTooltip.swift */,
 				122F28B2A6E5D51FEBC7D29D /* PermissionAppDragView.swift */,
 				80C8A05A82A7C113E0892543 /* PermissionGuideWindowController.swift */,
@@ -266,6 +274,7 @@
 				7FE86B244679C85061AE61D2 /* ShelfContextMenu.swift */,
 				EF5C91044FE6C89542B40249 /* ShelfDragViews.swift */,
 				2404CF97215AEC8D681563B9 /* ShelfDropHostingView.swift */,
+				E2DCF870B5B0FB604971CD7B /* ShelfRenderingView.swift */,
 				F2FA7E7D666DBDA30AE420CD /* ShelfWindowController.swift */,
 			);
 			path = AppKit;
@@ -416,6 +425,7 @@
 				01AC7C47FA6239832E9A362F /* DiagnosticsTests.swift in Sources */,
 				ECD5BF2FAB0B1343521BB042 /* DragLifecycleTests.swift in Sources */,
 				99D677AB18F5FCE1257579BC /* HoverTeardownTests.swift in Sources */,
+				837F24869F4681823D9F2767 /* NativeShelfRoutingTests.swift in Sources */,
 				CFD053C0FB09C749D5992602 /* NativeTooltipTests.swift in Sources */,
 				20F02B96F51F13B9E4EF6CA5 /* PermissionGuideTests.swift in Sources */,
 				C7EB8A06AC488AF2EE3C0DB3 /* ReleaseRegressionTests.swift in Sources */,
@@ -448,6 +458,7 @@
 				E10D2DC8B0A4CCFFF10740DD /* LaunchAtLoginService.swift in Sources */,
 				DDEDF5387D89721374360B20 /* MainRunLoopWatchdog.swift in Sources */,
 				8D33A0855465213F480B8A1D /* NativeHoverRegion.swift in Sources */,
+				BB334026AD0B1D54ECD7DD29 /* NativeShelfControls.swift in Sources */,
 				1C4906749382E2925A0486B0 /* NativeTooltip.swift in Sources */,
 				B744857ECFAADC1F7EC32DF7 /* OptionClearHintView.swift in Sources */,
 				6336742BE19BAD4C7A3CC2C8 /* PermissionAppDragView.swift in Sources */,
@@ -472,6 +483,7 @@
 				8A2ECEE1B29A77148A0B2570 /* ShelfItem.swift in Sources */,
 				842B6FE264E2839B6C18DF4D /* ShelfPalette.swift in Sources */,
 				AF796645D32D81A021F3F962 /* ShelfQuickActionBar.swift in Sources */,
+				1C070F2CB181538C5FA17D63 /* ShelfRenderingView.swift in Sources */,
 				EBE6EE47EEBB807615680F34 /* ShelfStore.swift in Sources */,
 				FF53ADB63F6D2E9814B336A3 /* ShelfTint.swift in Sources */,
 				7ACAAF8E38F6BE1AF3BA6D57 /* ShelfView.swift in Sources */,
@@ -638,7 +650,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -646,7 +658,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.4;
+				MARKETING_VERSION = 2.0.5;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
@@ -675,7 +687,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -683,7 +695,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.4;
+				MARKETING_VERSION = 2.0.5;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;

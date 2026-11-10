@@ -2,7 +2,9 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class ShelfDropHostingView: NSHostingView<AnyView> {
+final class ShelfDropHostingView: NSView {
+    let renderingView: ShelfRenderingView
+    override var isFlipped: Bool { true }
     weak var store: ShelfStore?
     var onTwoFingerTap: (() -> Void)?
     var onHoverChanged: ((Bool) -> Void)?
@@ -17,17 +19,20 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
 
     init(store: ShelfStore) {
         self.store = store
-        super.init(
-            rootView: AnyView(
-                ShelfView(store: store)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            )
-        )
+        renderingView = ShelfRenderingView(rootView: AnyView(
+            ShelfView(store: store).frame(maxWidth: .infinity, maxHeight: .infinity)))
+        super.init(frame: .zero)
+        renderingView.sizingOptions = []
+        renderingView.autoresizingMask = [.width, .height]
+        renderingView.wantsLayer = true
+        renderingView.layer?.backgroundColor = NSColor.clear.cgColor
+        addSubview(renderingView)
         allowedTouchTypes = [.indirect]
     }
 
-    required init(rootView: AnyView) {
-        super.init(rootView: rootView)
+    override func layout() {
+        super.layout()
+        renderingView.frame = bounds
     }
 
     @available(*, unavailable)
@@ -36,29 +41,33 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
     override func hitTest(_ point: NSPoint) -> NSView? {
         let localPoint = convert(point, from: superview)
         guard bounds.contains(localPoint) else { return nil }
-        // WebKit mouse tracking asks the hosting view to hit-test during a drag.
-        // On macOS 27 this can crash inside SwiftUI's NSViewResponder executor
-        // lookup. Our AppKit drop areas already own these interactions; resolve
-        // them without entering SwiftUI's responder graph. Keep normal SwiftUI
-        // hit testing for controls outside the native drop areas.
-        if let destination = nativeDropDestination(in: self, at: localPoint) {
-            return destination
+        guard !isTearingDown, store?.isClosed != true else { return nil }
+        if #available(macOS 27, *) {
+            // Do not call NSHostingView.hitTest, even as a fallback. Context
+            // hit-testing in macOS 27 also bypasses the old hosting override.
+            return nativeDestination(at: localPoint) ?? self
         }
         return super.hitTest(point)
     }
 
-    private func nativeDropDestination(in view: NSView, at point: NSPoint) -> DragPassThroughNSView? {
-        guard !view.isHidden, view.alphaValue > 0 else { return nil }
-        if let destination = view as? DragPassThroughNSView,
-           destination.dropStore === store,
-           destination.bounds.contains(destination.convert(point, from: self)),
-           destination.visibleRect.contains(destination.convert(point, from: self)) {
-            return destination
+    private func nativeDestination(at point: NSPoint) -> NSView? {
+        var best: (view: NSView, priority: Int)?
+        func visit(_ view: NSView) {
+            guard !view.isHidden, view.alphaValue > 0 else { return }
+            let local = view.convert(point, from: self)
+            guard view.bounds.contains(local), view.visibleRect.contains(local) else { return }
+            let priority: Int
+            if view is ShelfNativeButton { priority = 100 }
+            else if view is ShelfNativeTitleView { priority = 90 }
+            else if let drag = view as? DragPassThroughNSView, drag.dropStore === store {
+                priority = drag.itemsProvider == nil ? 30 : 80
+            } else if view is NSScrollView { priority = 20 }
+            else { priority = 0 }
+            if priority > 0, priority > (best?.priority ?? 0) { best = (view, priority) }
+            for child in view.subviews.reversed() { visit(child) }
         }
-        for child in view.subviews.reversed() {
-            if let destination = nativeDropDestination(in: child, at: point) { return destination }
-        }
-        return nil
+        for child in subviews.reversed() { visit(child) }
+        return best?.view
     }
 
     override var mouseDownCanMoveWindow: Bool { true }
