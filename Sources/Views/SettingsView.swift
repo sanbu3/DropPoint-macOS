@@ -94,7 +94,7 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .focusable(false)
-            .help("关闭设置（⌘W）")
+            .dropPointHelp("关闭设置（⌘W）")
             .accessibilityLabel("关闭设置")
             .padding(.top, 10)
             .padding(.trailing, 14)
@@ -166,7 +166,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
-                .help(page.title)
+                .dropPointHelp(page.title)
             }
             }
             .padding(.horizontal, 12)
@@ -557,7 +557,7 @@ struct SettingsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 .buttonStyle(.plain)
-                                .help("删除自定义操作")
+                                .dropPointHelp("删除自定义操作")
                             }
                             .padding(.horizontal, 16)
                             .frame(minHeight: 54)
@@ -677,7 +677,7 @@ struct SettingsView: View {
                     .multilineTextAlignment(.center)
                 }
                 .buttonStyle(.plain)
-                .help("原生版本维护者：\(ProjectAttribution.nativeMaintainerName)（\(ProjectAttribution.nativeMaintainerHandle)）")
+                .dropPointHelp("原生版本维护者：\(ProjectAttribution.nativeMaintainerName)（\(ProjectAttribution.nativeMaintainerHandle)）")
                 .accessibilityLabel("原生版本维护者 \(ProjectAttribution.nativeMaintainerName)，GitHub \(ProjectAttribution.nativeMaintainerHandle)")
             }
             .frame(maxWidth: .infinity)
@@ -770,7 +770,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("停止观察")
+            .dropPointHelp("停止观察")
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 54)

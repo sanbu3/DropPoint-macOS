@@ -122,7 +122,7 @@ private struct ExpandedShelfHeader: View {
             }
             .buttonStyle(.plain)
             .shelfFocusRing(Circle(), color: palette.accent)
-            .help("收起文件列表")
+            .dropPointHelp("收起文件列表")
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
@@ -136,12 +136,12 @@ private struct ExpandedShelfHeader: View {
                         .truncationMode(.middle)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 2) { store.promptRenameShelf() }
-                        .help("双击重命名文件架")
+                        .dropPointHelp("双击重命名文件架")
                     if store.isPinned {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(palette.accent)
-                            .help("已固定")
+                            .dropPointHelp("已固定")
                     }
                 }
 
@@ -194,7 +194,7 @@ private struct ExpandedShelfHeader: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("文件架设置与操作")
+            .dropPointHelp("文件架设置与操作")
         }
         .frame(height: 52)
         .padding(.leading, 16)
@@ -287,7 +287,7 @@ private struct ExpandedFileTile: View {
                 }
             )
         }
-        .help(item.name)
+        .dropPointHelp(item.name)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(item.name)
         .accessibilityValue(selected ? "已选择，\(item.typeLabel)" : item.typeLabel)

@@ -29,7 +29,7 @@ struct PermissionGuideView: View {
             }
             .buttonStyle(.plain)
             .shelfFocusRing(Circle(), color: .accentColor)
-            .help("关闭权限提示").accessibilityLabel("关闭权限提示")
+            .dropPointHelp("关闭权限提示").accessibilityLabel("关闭权限提示")
         }
         .padding(.horizontal, 18).padding(.vertical, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -94,7 +94,7 @@ struct CompactFileShelfView: View {
         .buttonStyle(.plain)
         .shelfFocusRing(Capsule(), color: palette.accent)
         .disabled(store.items.count <= 1)
-        .help("\(store.displayTitle) · \(store.summary)")
+        .dropPointHelp("\(store.displayTitle) · \(store.summary)")
     }
 }
 

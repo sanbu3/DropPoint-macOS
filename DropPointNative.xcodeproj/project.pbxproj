@@ -11,6 +11,7 @@
 		04E9EBA53973E1D0BC911BAB /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A4A57EE58703C0EF70B7AA /* ClipboardService.swift */; };
 		06DA6A4EF0CADFBDE8BFAA32 /* DropPointLogo.svg in Resources */ = {isa = PBXBuildFile; fileRef = C2FEBA3176F83A868761DCFC /* DropPointLogo.svg */; };
 		13AAC37CE43B0CEF8634F5D2 /* WindowScreenshotSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BA9E0F18A579244979FDBE /* WindowScreenshotSmokeTests.swift */; };
+		1C4906749382E2925A0486B0 /* NativeTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFE4754564846B0827AD0BF /* NativeTooltip.swift */; };
 		20F02B96F51F13B9E4EF6CA5 /* PermissionGuideTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261650BAA90BE7B599BDC1B6 /* PermissionGuideTests.swift */; };
 		242FF4C03E5A443E28833862 /* InputMonitoringPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB01643E4205F7818E44590D /* InputMonitoringPermissionService.swift */; };
 		255B52FD63A42E32810A7724 /* ShelfDropHostingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2404CF97215AEC8D681563B9 /* ShelfDropHostingView.swift */; };
@@ -54,6 +55,7 @@
 		C7EB8A06AC488AF2EE3C0DB3 /* ReleaseRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B811AF48AF53893BFD5CE42 /* ReleaseRegressionTests.swift */; };
 		CB6C29B72C794C35E91985D5 /* ShelfFocusRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7C759DEB962642660176DF /* ShelfFocusRing.swift */; };
 		CF8480E4E339D6A74C29184A /* Cat_in_Box Timeline.png in Resources */ = {isa = PBXBuildFile; fileRef = 953C9045C611D225D9291597 /* Cat_in_Box Timeline.png */; };
+		CFD053C0FB09C749D5992602 /* NativeTooltipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6EA388EDA98B6B069CCBB80 /* NativeTooltipTests.swift */; };
 		D3E23F0C734B05404C84993D /* Cat_in_Box.svg in Resources */ = {isa = PBXBuildFile; fileRef = 7B49C3435F21B7E7EA4B0730 /* Cat_in_Box.svg */; };
 		DDEDF5387D89721374360B20 /* MainRunLoopWatchdog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4301890BD9C33570249C01 /* MainRunLoopWatchdog.swift */; };
 		E10D2DC8B0A4CCFFF10740DD /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8BE7B91D23778BA7DBF3109 /* LaunchAtLoginService.swift */; };
@@ -87,6 +89,7 @@
 /* Begin PBXFileReference section */
 		0B811AF48AF53893BFD5CE42 /* ReleaseRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseRegressionTests.swift; sourceTree = "<group>"; };
 		0BFAB47FB3B5F5B211B5F1AD /* DropPointApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropPointApp.swift; sourceTree = "<group>"; };
+		0DFE4754564846B0827AD0BF /* NativeTooltip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTooltip.swift; sourceTree = "<group>"; };
 		11676C7F1E7580EADC890261 /* CompactFileShelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactFileShelfView.swift; sourceTree = "<group>"; };
 		122F28B2A6E5D51FEBC7D29D /* PermissionAppDragView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionAppDragView.swift; sourceTree = "<group>"; };
 		12DFF537C897D5495B17AE0E /* ShelfPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfPalette.swift; sourceTree = "<group>"; };
@@ -137,6 +140,7 @@
 		D4D3CA4AAF812B40F6777B8A /* ArtworkPlaybackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkPlaybackTests.swift; sourceTree = "<group>"; };
 		D533C750195C1D3F7446A547 /* DragLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragLifecycleTests.swift; sourceTree = "<group>"; };
 		D60444CC808E3CC2338FE8C1 /* ShelfItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfItem.swift; sourceTree = "<group>"; };
+		D6EA388EDA98B6B069CCBB80 /* NativeTooltipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTooltipTests.swift; sourceTree = "<group>"; };
 		D7C7ECB26F075D2FE5D60A67 /* ShelfAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfAction.swift; sourceTree = "<group>"; };
 		DEAE2C9FD948EB9826166429 /* ShelfGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfGeometry.swift; sourceTree = "<group>"; };
 		E4430FA0D50EFFCAED4C1CD8 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
@@ -201,6 +205,7 @@
 				35F0CFE68F23B9F6D277B5AA /* DiagnosticsTests.swift */,
 				D533C750195C1D3F7446A547 /* DragLifecycleTests.swift */,
 				71DCD26D7CAF6D6713946D4B /* HoverTeardownTests.swift */,
+				D6EA388EDA98B6B069CCBB80 /* NativeTooltipTests.swift */,
 				261650BAA90BE7B599BDC1B6 /* PermissionGuideTests.swift */,
 				0B811AF48AF53893BFD5CE42 /* ReleaseRegressionTests.swift */,
 				1EEC6FD5A62755C0940C6677 /* ShelfGeometryTests.swift */,
@@ -253,6 +258,7 @@
 			isa = PBXGroup;
 			children = (
 				FCD731C88FCBBE52F4E3345F /* NativeHoverRegion.swift */,
+				0DFE4754564846B0827AD0BF /* NativeTooltip.swift */,
 				122F28B2A6E5D51FEBC7D29D /* PermissionAppDragView.swift */,
 				80C8A05A82A7C113E0892543 /* PermissionGuideWindowController.swift */,
 				762876CDE044EFE5D832A43C /* ScreenshotFlyInPresenter.swift */,
@@ -410,6 +416,7 @@
 				01AC7C47FA6239832E9A362F /* DiagnosticsTests.swift in Sources */,
 				ECD5BF2FAB0B1343521BB042 /* DragLifecycleTests.swift in Sources */,
 				99D677AB18F5FCE1257579BC /* HoverTeardownTests.swift in Sources */,
+				CFD053C0FB09C749D5992602 /* NativeTooltipTests.swift in Sources */,
 				20F02B96F51F13B9E4EF6CA5 /* PermissionGuideTests.swift in Sources */,
 				C7EB8A06AC488AF2EE3C0DB3 /* ReleaseRegressionTests.swift in Sources */,
 				BDC1C452D7ABF32F69874617 /* ShelfGeometryTests.swift in Sources */,
@@ -441,6 +448,7 @@
 				E10D2DC8B0A4CCFFF10740DD /* LaunchAtLoginService.swift in Sources */,
 				DDEDF5387D89721374360B20 /* MainRunLoopWatchdog.swift in Sources */,
 				8D33A0855465213F480B8A1D /* NativeHoverRegion.swift in Sources */,
+				1C4906749382E2925A0486B0 /* NativeTooltip.swift in Sources */,
 				B744857ECFAADC1F7EC32DF7 /* OptionClearHintView.swift in Sources */,
 				6336742BE19BAD4C7A3CC2C8 /* PermissionAppDragView.swift in Sources */,
 				2CD4053F6765929827576AAA /* PermissionGuidePresentation.swift in Sources */,
@@ -630,7 +638,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -638,7 +646,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.3;
+				MARKETING_VERSION = 2.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
@@ -667,7 +675,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -675,7 +683,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.3;
+				MARKETING_VERSION = 2.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;

@@ -247,12 +247,12 @@ struct ShelfView: View {
             ShelfWindowDragOverlay(store: store)
                 .frame(width: 148, height: 42)
                 .position(x: 78, y: 21)
-                .help("拖动文件架 · 双击清空")
+                .dropPointHelp("拖动文件架 · 双击清空")
 
             ShelfWindowDragOverlay(store: store)
                 .frame(width: 120, height: 22)
                 .position(x: 99, y: 196)
-                .help("拖动文件架 · 双击清空 · Control-拖动文件图标也可移动")
+                .dropPointHelp("拖动文件架 · 双击清空 · Control-拖动文件图标也可移动")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -438,7 +438,7 @@ private struct ShelfControlButton: View {
         .background(hovered ? palette.controlHover : .clear, in: Circle())
         .opacity(hovered ? 0.95 : (danger ? 0.78 : 0.56))
         .background(NativeHoverRegion(onChange: { hovered = $0 }).allowsHitTesting(false))
-        .help(label)
+        .dropPointHelp(label)
     }
 }
 

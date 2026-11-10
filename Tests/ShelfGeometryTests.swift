@@ -544,8 +544,13 @@ final class DirectoryWatcherTests: XCTestCase {
         let watcher = DirectoryWatcher()
         watcher.watchPaths = [directory.path]
         let received = expectation(description: "busy directory still flushes")
+        var receivedFirstBatch = false
         watcher.onNewFiles = { urls in
-            if !urls.isEmpty { received.fulfill() }
+            // A busy watcher legitimately delivers several batches. Only the
+            // first proves bounded flush latency; do not over-fulfill XCTest.
+            guard !urls.isEmpty, !receivedFirstBatch else { return }
+            receivedFirstBatch = true
+            received.fulfill()
         }
         let ready = expectation(description: "directory baseline ready")
         watcher.onReady = { ready.fulfill() }
@@ -562,6 +567,7 @@ final class DirectoryWatcherTests: XCTestCase {
         }
         await fulfillment(of: [received], timeout: 2.1)
         writer.cancel()
+        _ = await writer.result
     }
 }
 

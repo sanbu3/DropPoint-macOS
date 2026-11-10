@@ -33,7 +33,7 @@ if args.summary:
         print(json.dumps({'session': session, **context, 'events': len(events),
                           'lastEvent': events[-1].get('event'), 'normalExitRecorded': ended}, ensure_ascii=False))
 else:
-    for e in entries[-max(0, args.last):]:
+    for e in (entries[-args.last:] if args.last > 0 else []):
         stamp = datetime.fromtimestamp(e.get('timestamp', 0)).astimezone().isoformat(timespec='milliseconds')
         print(stamp, e.get('pid'), e.get('session'), e.get('category'), e.get('event'),
               json.dumps(e.get('fields', {}), ensure_ascii=False))

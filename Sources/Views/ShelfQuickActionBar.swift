@@ -70,7 +70,7 @@ struct ShelfQuickActionBar: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help("更多操作")
+                .dropPointHelp("更多操作")
             }
 
         }
@@ -98,7 +98,7 @@ struct ShelfQuickActionBar: View {
         .buttonStyle(.plain)
         .shelfFocusRing(Capsule(), color: palette.accent)
         .disabled(!hasSelection)
-        .help(action.title)
+        .dropPointHelp(action.title)
         .accessibilityLabel(action.title)
     }
 
