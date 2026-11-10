@@ -225,6 +225,7 @@ final class ShelfWindowManager {
         )
         let origin = cascadedOrigin(from: base, in: placementArea)
         shelves.append(controller)
+        AppDiagnostics.record("shelf-created", category: "Window", fields: ["shelf": controller.store.diagnosticID, "items": String(urls.count), "transient": String(transient)])
         controller.show(at: origin, activating: false)
         if !urls.isEmpty { controller.store.add(urls: urls) }
         if transient {
@@ -563,6 +564,7 @@ final class ShelfWindowManager {
                 NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
                 self.scheduleIdleSnap(target)
             } catch {
+                AppDiagnostics.error("window-capture-failed", error: error, category: "Capture")
                 self.showError(
                     title: "无法截取窗口",
                     detail: error.localizedDescription,
@@ -610,7 +612,8 @@ final class ShelfWindowManager {
             return
         }
         let controller = PermissionGuideWindowController(
-            permission: inputMonitoringPermission
+            permission: inputMonitoringPermission,
+            onAuthorizationCompleted: { [weak self] in self?.settingsWindowController?.close() }
         ) { [weak self] in
             self?.permissionGuideController = nil
         }
@@ -766,6 +769,7 @@ final class ShelfWindowManager {
         store.onDropFailed = { [weak self, weak controller] message in
             guard let self, let controller else { return }
             self.scheduleEmptyAutoClose(controller)
+            AppDiagnostics.record("import-error-presented", category: "Import", fields: ["shelf": controller.store.diagnosticID])
             self.showError(title: "无法接收拖入内容", detail: message, window: controller.window)
         }
         store.onDropSettled = { [weak self, weak controller] in

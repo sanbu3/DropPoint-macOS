@@ -24,8 +24,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var screenshotWatcher: DirectoryWatcher!
     private var pendingOpenURLs: [URL] = []
     private var openBatchWorkItem: DispatchWorkItem?
+    private let diagnosticsWatchdog = MainRunLoopWatchdog()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDiagnostics.record("application-start")
+        diagnosticsWatchdog.start()
+        AppDiagnostics.record("permission-initial-state", category: "Permission", fields: [
+            "input": String(describing: inputMonitoringPermission.state),
+            "screen": String(describing: screenRecordingPermission.state)])
         #if DEBUG
         if let appearance = ProcessInfo.processInfo.environment["DROPPOINT_SNAPSHOT_APPEARANCE"] {
             NSApp.appearance = NSAppearance(named: appearance == "light" ? .aqua : .darkAqua)
@@ -179,14 +185,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        AppDiagnostics.record("application-terminate-normal")
+        diagnosticsWatchdog.stop()
         hotKeys?.stop()
         doubleCommandMonitor?.stop()
         dragMonitor?.stop()
         directoryWatcher?.stop()
         screenshotWatcher?.stop()
+        AppDiagnostics.writer.flush()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        AppDiagnostics.record("application-active")
         inputMonitoringPermission.refresh()
         screenRecordingPermission.refresh()
     }
@@ -233,6 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        AppDiagnostics.record("application-open-files", fields: ["count": String(urls.count)])
         enqueueOpenURLs(urls)
         application.reply(toOpenOrPrint: .success)
     }

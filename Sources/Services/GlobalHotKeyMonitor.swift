@@ -48,6 +48,7 @@ final class GlobalHotKeyMonitor {
     func start() {
         guard eventHandler == nil else { return }
         registrationErrors.removeAll()
+        AppDiagnostics.record("hotkeys-start", category: "Input")
 
         var eventType = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
@@ -78,6 +79,7 @@ final class GlobalHotKeyMonitor {
             &eventHandler
         )
         guard handlerStatus == noErr else {
+            AppDiagnostics.record("hotkey-handler-failed", category: "Input", fields: ["status": String(handlerStatus)])
             registrationErrors.append("无法安装快捷键事件处理器（错误 \(handlerStatus)）")
             return
         }
@@ -93,6 +95,7 @@ final class GlobalHotKeyMonitor {
             &mainHotKey
         )
         if mainStatus != noErr {
+            AppDiagnostics.record("hotkey-registration-failed", category: "Input", fields: ["action": "main", "status": String(mainStatus)])
             registrationErrors.append("Shift+Tab 已被其他应用占用（错误 \(mainStatus)）")
         }
 
@@ -106,6 +109,7 @@ final class GlobalHotKeyMonitor {
             &clipboardHotKey
         )
         if clipboardStatus != noErr {
+            AppDiagnostics.record("hotkey-registration-failed", category: "Input", fields: ["action": "clipboard", "status": String(clipboardStatus)])
             registrationErrors.append("⌥⇧A 已被其他应用占用（错误 \(clipboardStatus)）")
         }
 
@@ -119,11 +123,13 @@ final class GlobalHotKeyMonitor {
             &restoreHotKey
         )
         if restoreStatus != noErr {
+            AppDiagnostics.record("hotkey-registration-failed", category: "Input", fields: ["action": "restore", "status": String(restoreStatus)])
             registrationErrors.append("⇧⌘T 已被其他应用占用（错误 \(restoreStatus)）")
         }
     }
 
     func stop() {
+        AppDiagnostics.record("hotkeys-stop", category: "Input")
         if let mainHotKey { UnregisterEventHotKey(mainHotKey) }
         if let clipboardHotKey { UnregisterEventHotKey(clipboardHotKey) }
         if let restoreHotKey { UnregisterEventHotKey(restoreHotKey) }

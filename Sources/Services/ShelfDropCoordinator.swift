@@ -6,9 +6,16 @@ import AppKit
 enum ShelfDropCoordinator {
     @discardableResult
     static func accept(_ pasteboard: NSPasteboard, into store: ShelfStore) -> Bool {
-        guard !store.isClosed else { return false }
+        guard !store.isClosed else {
+            AppDiagnostics.record("import-rejected-closed", category: "Import", fields: ["shelf": store.diagnosticID])
+            return false
+        }
+        let shelfID = store.diagnosticID
         let accepted = FileDropImporter.importFiles(from: pasteboard) { [weak store] event in
-            guard let store, !store.isClosed else { return }
+            guard let store, !store.isClosed else {
+                AppDiagnostics.record("import-result-ignored-closed", category: "Import", fields: ["shelf": shelfID])
+                return
+            }
             switch event {
             case .imported(let urls):
                 DragDiagnostics.record("import-delivered", store: store)

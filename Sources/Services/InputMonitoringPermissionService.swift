@@ -14,17 +14,23 @@ final class InputMonitoringPermissionService {
     var onShowGuide: (() -> Void)?
     var onWillRelaunch: (() -> Void)?
 
+    @ObservationIgnored private let preflight: () -> Bool
     private let wasGrantedAtLaunch: Bool
-    private(set) var state: State
+    private(set) var state: State {
+        didSet {
+            if oldValue != state { AppDiagnostics.record("input-monitoring-state", category: "Permission", fields: ["state": String(describing: state)]) }
+        }
+    }
 
-    init() {
-        let granted = CGPreflightListenEventAccess()
+    init(preflight: @escaping () -> Bool = { CGPreflightListenEventAccess() }) {
+        self.preflight = preflight
+        let granted = preflight()
         wasGrantedAtLaunch = granted
         state = granted ? .active : .notGranted
     }
 
     func refresh() {
-        guard CGPreflightListenEventAccess() else {
+        guard preflight() else {
             state = .notGranted
             return
         }
@@ -39,6 +45,7 @@ final class InputMonitoringPermissionService {
     }
 
     func openSystemSettings() {
+        AppDiagnostics.record("input-monitoring-open-settings", category: "Permission")
         let candidates = [
             "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
             "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ListenEvent",

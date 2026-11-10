@@ -282,9 +282,11 @@ final class ShelfStore {
     }
 
     func perform(_ action: ShelfAction) {
+        AppDiagnostics.record("shelf-action", category: "Action", fields: ["shelf": diagnosticID, "action": action.rawValue, "selection": String(selectedItems.count)])
         let selected = selectedItems
         let idsByURL = Dictionary(uniqueKeysWithValues: selected.map { ($0.url.standardizedFileURL, $0.id) })
         ShelfActionService.perform(action, urls: selected.map(\.url)) { [weak self] succeeded in
+            AppDiagnostics.record("shelf-action-completed", category: "Action", fields: ["shelf": self?.diagnosticID ?? "released", "succeeded": String(succeeded.count)])
             if action == .compressImages {
                 self?.add(urls: Array(succeeded))
                 return
@@ -295,9 +297,11 @@ final class ShelfStore {
     }
 
     func perform(_ action: CustomShelfAction) {
+        AppDiagnostics.record("shelf-custom-action", category: "Action", fields: ["shelf": diagnosticID, "kind": action.kind.rawValue, "selection": String(selectedItems.count)])
         let selected = selectedItems
         let idsByURL = Dictionary(uniqueKeysWithValues: selected.map { ($0.url.standardizedFileURL, $0.id) })
         ShelfActionService.perform(action, urls: selected.map(\.url)) { [weak self] succeeded in
+            AppDiagnostics.record("shelf-action-completed", category: "Action", fields: ["shelf": self?.diagnosticID ?? "released", "succeeded": String(succeeded.count)])
             guard action.kind == .moveTo else { return }
             self?.remove(items: Set(succeeded.compactMap { idsByURL[$0.standardizedFileURL] }))
         }

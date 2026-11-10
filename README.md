@@ -179,7 +179,7 @@ DropPoint 可以监听用户指定的本地目录，也可以单独识别桌面�
 - AirDrop、信息、邮件等操作由 macOS 系统分享服务处理。
 
 <p align="center">
-  <img src="docs/media/droppoint-permission-guide.png" width="340" alt="输入监控权限引导悬浮窗">
+  <img src="docs/media/droppoint-permission-guide.png" width="468" alt="输入监控权限引导悬浮窗">
 </p>
 
 ## 从源码构建
@@ -219,9 +219,9 @@ xcodebuild \
 
 ## 版本与验证
 
-当前源码版本为 **2.0.2 / build 11**，更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
+当前源码版本为 **2.0.3 / build 12**，更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
 
-最新一次本机验证：102 项测试，101 通过，1 项因未获得屏幕录制权限而跳过，0 失败；包含拖放关闭、完整动画、左右 Command 松键、截图不覆盖和偏好迁移回归。此结果不等同于所有设备和第三方应用上的无缺陷保证。真实授权后的连续截图、物理晃动/按键唤出、多显示器和旧版 macOS 仍需实机验证。
+最新一次本机验证：109 项测试，108 通过，1 项因未获得屏幕录制权限而跳过，0 失败；包含拖放关闭、完整动画、左右 Command 松键、截图不覆盖和偏好迁移回归。此结果不等同于所有设备和第三方应用上的无缺陷保证。真实授权后的连续截图、物理晃动/按键唤出、多显示器和旧版 macOS 仍需实机验证。
 
 ## 项目结构
 

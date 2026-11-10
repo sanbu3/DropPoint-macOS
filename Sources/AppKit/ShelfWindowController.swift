@@ -186,6 +186,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
 
     func closeAnimated() {
         guard !hasClosed else { return }
+        DragDiagnostics.record("window-close-request", store: store)
         cancelOptionHold()
         resetPullDownGesture()
         onWillDismiss?(self)
@@ -342,6 +343,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard !hasClosed else { return }
         hasClosed = true
+        DragDiagnostics.record("window-closed", store: store)
         pendingDragDisposition = nil
         store.onInternalDragEnded = nil
         // Stop hover dispatch before SwiftUI dismantles the responder tree,
@@ -454,18 +456,24 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             contentLayer.add(animation, forKey: "dropPointDisappear")
         }
 
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.16
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            window.animator().alphaValue = 0
-        } completionHandler: { [weak self] in
+        // Completion can be delayed indefinitely when the display server stops
+        // driving animations (for example a locked/occluded desktop). A bounded
+        // fallback finishes the same generation once, without reviving old views.
+        let finish: @Sendable (String) -> Void = { [weak self] reason in
             Task { @MainActor in
-                guard let self, self.visibilityGeneration == generation,
-                      let window = self.window else { return }
+                guard let self, !self.hasClosed, self.visibilityGeneration == generation,
+                      self.outDisposition != nil, let window = self.window else { return }
+                AppDiagnostics.record("window-out-completed", category: "Window", fields: ["shelf": self.store.diagnosticID, "reason": reason])
                 window.orderOut(nil)
                 self.finishOut(self.outDisposition ?? disposition, restoring: originalOrigin)
             }
         }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.16
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            window.animator().alphaValue = 0
+        } completionHandler: { finish("animation") }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { finish("deadline") }
     }
 
     private func finishOut(_ disposition: OutDisposition, restoring originalOrigin: NSPoint) {

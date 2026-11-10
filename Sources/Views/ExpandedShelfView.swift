@@ -271,7 +271,7 @@ private struct ExpandedFileTile: View {
             .opacity(store.isDraggingOut && selected ? 0 : 1)
         .frame(minHeight: 112, maxHeight: 112)
         .contentShape(.rect(cornerRadius: 14, style: .continuous))
-        .onHover { hovered = $0 }
+        .background(NativeHoverRegion(onChange: { hovered = $0 }).allowsHitTesting(false))
         .overlay {
             FileDragOutOverlay(
                 store: store,

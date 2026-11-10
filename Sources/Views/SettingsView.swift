@@ -471,7 +471,13 @@ struct SettingsView: View {
                     Divider().padding(.leading, 54)
                     toggleSetting("始终置顶", detail: "让文件架保持在普通应用窗口上方。", icon: "pin.fill", value: $draft.alwaysOnTop)
                     Divider().padding(.leading, 54)
-                    toggleSetting("调试日志", detail: "在标准错误输出中记录窗口和贴边事件。", icon: "ladybug", value: $draft.debug)
+                    toggleSetting("额外调试输出", detail: "基础诊断日志始终开启；此开关额外向开发控制台输出贴边信息。", icon: "ladybug", value: $draft.debug)
+                    settingRow(icon: "doc.text.magnifyingglass", title: "诊断日志", detail: "开发版与正式版均记录本地诊断，自动轮换保留；不记录文件内容或键盘输入。") {
+                        HStack(spacing: 8) {
+                            Button("打开日志", action: AppDiagnostics.openFolder)
+                            Button("导出…", action: AppDiagnostics.export)
+                        }.controlSize(.small)
+                    }
                 }
             }
         }

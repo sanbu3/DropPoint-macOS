@@ -14,7 +14,11 @@ final class ScreenRecordingPermissionService {
     var onWillRelaunch: (() -> Void)?
 
     private let wasGrantedAtLaunch: Bool
-    private(set) var state: State
+    private(set) var state: State {
+        didSet {
+            if oldValue != state { AppDiagnostics.record("screen-recording-state", category: "Permission", fields: ["state": String(describing: state)]) }
+        }
+    }
 
     init() {
         let granted = CGPreflightScreenCaptureAccess()

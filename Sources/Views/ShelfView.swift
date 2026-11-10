@@ -437,7 +437,7 @@ private struct ShelfControlButton: View {
         .shelfFocusRing(Circle(), color: palette.accent, showsFocus: showsKeyboardFocus)
         .background(hovered ? palette.controlHover : .clear, in: Circle())
         .opacity(hovered ? 0.95 : (danger ? 0.78 : 0.56))
-        .onHover { hovered = $0 }
+        .background(NativeHoverRegion(onChange: { hovered = $0 }).allowsHitTesting(false))
         .help(label)
     }
 }

@@ -55,7 +55,6 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
            destination.visibleRect.contains(destination.convert(point, from: self)) {
             return destination
         }
-        // Decorative web content is never a pointer/drop destination.
         for child in view.subviews.reversed() {
             if let destination = nativeDropDestination(in: child, at: point) { return destination }
         }
@@ -89,6 +88,7 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
     /// hit-testing when a trailing mouseMoved arrives during window teardown.
     func prepareForTeardown() {
         isTearingDown = true
+        AppDiagnostics.record("hover-tracking-stopped", category: "Window", fields: ["shelf": store?.diagnosticID ?? "unknown"])
         if let shelfTrackingArea {
             removeTrackingArea(shelfTrackingArea)
             self.shelfTrackingArea = nil
@@ -97,16 +97,21 @@ final class ShelfDropHostingView: NSHostingView<AnyView> {
 
     override func mouseMoved(with event: NSEvent) {
         guard !isTearingDown else { return }
+        // On macOS 27 this bridge is present in the fatal HoverEventDispatcher
+        // stack. Custom controls use native tracking regions instead.
+        if #available(macOS 27, *) { return }
         super.mouseMoved(with: event)
     }
 
     override func mouseEntered(with event: NSEvent) {
-        super.mouseEntered(with: event)
+        guard !isTearingDown, store?.isClosed != true else { return }
+        if #unavailable(macOS 27) { super.mouseEntered(with: event) }
         onHoverChanged?(true)
     }
 
     override func mouseExited(with event: NSEvent) {
-        super.mouseExited(with: event)
+        guard !isTearingDown, store?.isClosed != true else { return }
+        if #unavailable(macOS 27) { super.mouseExited(with: event) }
         onHoverChanged?(false)
     }
 

@@ -2,13 +2,22 @@ import AppKit
 import SwiftUI
 
 struct PermissionAppIcon: NSViewRepresentable {
-    func makeNSView(context: Context) -> PermissionAppDragView { PermissionAppDragView() }
-    func updateNSView(_ view: PermissionAppDragView, context: Context) {}
+    let presentation: PermissionGuidePresentation
+    func makeNSView(context: Context) -> PermissionAppDragView {
+        let view = PermissionAppDragView()
+        updateNSView(view, context: context)
+        return view
+    }
+    func updateNSView(_ view: PermissionAppDragView, context: Context) {
+        view.onDragBegan = { presentation.beginDrag() }
+        view.onDragEnded = { accepted in presentation.endDrag(accepted: accepted, now: ProcessInfo.processInfo.systemUptime) }
+    }
 }
 
 /// Publish the application bundle itself, not an icon image or a text URL.
 final class PermissionAppDragView: NSImageView, NSDraggingSource {
-    var onDragEnded: (() -> Void)?
+    var onDragBegan: (() -> Void)?
+    var onDragEnded: ((Bool) -> Void)?
     private var start: NSPoint?
     private var dragLease: (PermissionAppDragView, NSWindow?)?
     var isDragging: Bool { dragLease != nil }
@@ -27,6 +36,7 @@ final class PermissionAppDragView: NSImageView, NSDraggingSource {
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { start = event.locationInWindow }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
     override func mouseUp(with event: NSEvent) { start = nil }
     override func mouseDragged(with event: NSEvent) {
         guard dragLease == nil, let start,
@@ -35,13 +45,17 @@ final class PermissionAppDragView: NSImageView, NSDraggingSource {
         let item = NSDraggingItem(pasteboardWriter: Bundle.main.bundleURL as NSURL)
         item.setDraggingFrame(bounds, contents: image)
         dragLease = (self, window)
+        AppDiagnostics.record("permission-icon-drag-began", category: "Permission")
+        onDragBegan?()
         let session = beginDraggingSession(with: [item], event: event, source: self)
         session.animatesToStartingPositionsOnCancelOrFail = true
     }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .copy }
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        let lease = dragLease
         dragLease = nil
-        onDragEnded?()
+        AppDiagnostics.record("permission-icon-drag-ended", category: "Permission", fields: ["accepted": String(!operation.isEmpty)])
+        withExtendedLifetime(lease) { onDragEnded?(!operation.isEmpty) }
     }
 }

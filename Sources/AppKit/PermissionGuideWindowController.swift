@@ -6,25 +6,42 @@ private final class PermissionGuidePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// Non-activating companion to System Settings. Window geometry is read without
-/// requesting Accessibility or Screen Recording; only Input Monitoring is guided.
 @MainActor
 final class PermissionGuideWindowController: NSWindowController, NSWindowDelegate {
     private let permission: InputMonitoringPermissionService
     private let onClose: () -> Void
+    private let onAuthorizationCompleted: () -> Void
+    private let presentation = PermissionGuidePresentation()
+    private let now: () -> TimeInterval
+    private let openSettings: () -> Void
+    private let closeSettings: (pid_t?) -> Void
     private var pollTask: Task<Void, Never>?
-    private var shownAt = Date()
-    private var missingSince: Date?
-    private var lastRefresh = Date.distantPast
+    private var shownAt: TimeInterval = 0
+    private var missingSince: TimeInterval?
+    private var completedAt: TimeInterval?
+    private var settingsPID: pid_t?
     private var hasClosed = false
+    private var closeRequested = false
 
-    init(permission: InputMonitoringPermissionService, onClose: @escaping () -> Void) {
+    init(permission: InputMonitoringPermissionService,
+         onAuthorizationCompleted: @escaping () -> Void = {},
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         openSettings: (() -> Void)? = nil,
+         closeSettings: ((pid_t?) -> Void)? = nil,
+         onClose: @escaping () -> Void) {
         self.permission = permission
         self.onClose = onClose
-        let panel = PermissionGuidePanel(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 112),
-            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
-        )
+        self.onAuthorizationCompleted = onAuthorizationCompleted
+        self.now = now
+        self.openSettings = openSettings ?? { permission.openSystemSettings() }
+        self.closeSettings = closeSettings ?? { pid in
+            guard let pid, let app = NSRunningApplication(processIdentifier: pid),
+                  app.bundleIdentifier == "com.apple.systempreferences" else { return }
+            let accepted = app.terminate()
+            AppDiagnostics.record("permission-settings-close-requested", category: "Permission", fields: ["accepted": String(accepted)])
+        }
+        let panel = PermissionGuidePanel(contentRect: NSRect(x: 0, y: 0, width: 468, height: PermissionGuideGeometry.height),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -35,82 +52,82 @@ final class PermissionGuideWindowController: NSWindowController, NSWindowDelegat
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.level = .floating
         panel.title = "DropPoint 输入监控"
-        let hosting = NSHostingView(rootView: PermissionGuideView(
-            permission: permission, onClose: { [weak panel] in panel?.close() }
-        ))
+        super.init(window: panel)
+        let hosting = NSHostingView(rootView: PermissionGuideView(presentation: presentation,
+            onClose: { [weak self] in self?.closeRequested = true }))
         hosting.focusRingType = .none
         hosting.sizingOptions = []
+        hosting.autoresizingMask = [.width, .height]
         hosting.wantsLayer = true
         hosting.layer?.backgroundColor = NSColor.clear.cgColor
         hosting.layer?.cornerRadius = 18
         hosting.layer?.masksToBounds = true
         panel.contentView = hosting
-        super.init(window: panel)
         panel.delegate = self
     }
-
     required init?(coder: NSCoder) { nil }
 
     func show() {
-        shownAt = Date()
+        guard !hasClosed else { return }
+        shownAt = now()
         missingSince = nil
-        permission.openSystemSettings()
-        updatePosition()
+        permission.refresh()
+        if permission.state == .notGranted { openSettings() }
+        AppDiagnostics.record("permission-guide-shown", category: "Permission", fields: ["state": String(describing: permission.state)])
+        updatePosition(now: shownAt)
+        tick()
         pollTask?.cancel()
         pollTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                do { try await Task.sleep(for: .milliseconds(250)) }
-                catch { break }
+                do { try await Task.sleep(for: .milliseconds(200)) } catch { break }
                 guard !Task.isCancelled else { break }
                 self?.tick()
             }
         }
     }
-
-    private func tick() {
+    func tick() {
         guard !hasClosed else { return }
-        if Date().timeIntervalSince(lastRefresh) >= 1 {
-            lastRefresh = Date()
-            permission.refresh()
-        }
-        // Never tear down an AppKit dragging source from a timer callback.
-        guard !containsActiveDrag(window?.contentView) else { return }
-        if permission.state == .active || Date().timeIntervalSince(shownAt) > 120 {
-            close()
+        let now = now()
+        permission.refresh()
+        presentation.refresh(permission: permission.state, now: now)
+        // Keep the native source and its window alive through AppKit's end callback.
+        guard !presentation.isDragging else { return }
+        if closeRequested { close(); return }
+        if presentation.hasConfirmedGrant {
+            if completedAt == nil {
+                completedAt = now
+                AppDiagnostics.record("permission-guide-grant-confirmed", category: "Permission", fields: ["state": String(describing: permission.state)])
+            }
+            if now - (completedAt ?? now) >= 0.7 {
+                let pid = settingsPID
+                close()
+                onAuthorizationCompleted()
+                closeSettings(pid)
+            }
             return
         }
-        updatePosition()
+        completedAt = nil
+        if now - shownAt > 120 { close(); return }
+        updatePosition(now: now)
     }
-
-    private func updatePosition() {
+    private func updatePosition(now: TimeInterval) {
         guard let window else { return }
         guard let settingsFrame = systemSettingsFrame() else {
             window.orderOut(nil)
-            if missingSince == nil { missingSince = Date() }
-            if Date().timeIntervalSince(missingSince!) > 6 { close() }
+            if missingSince == nil { missingSince = now }
+            if now - (missingSince ?? now) > 6 { close() }
             return
         }
         missingSince = nil
-        let screens = NSScreen.screens
-        let screen = screens.max { a, b in
-            a.frame.intersection(settingsFrame).size.area < b.frame.intersection(settingsFrame).size.area
+        let screen = NSScreen.screens.max {
+            max(0, $0.frame.intersection(settingsFrame).width) * max(0, $0.frame.intersection(settingsFrame).height)
+            < max(0, $1.frame.intersection(settingsFrame).width) * max(0, $1.frame.intersection(settingsFrame).height)
         } ?? NSScreen.main
-        guard let area = screen?.visibleFrame else { return }
-        let size = window.frame.size
-        // Prefer beneath Settings; use its right edge when vertical space is tight.
-        var origin = NSPoint(x: settingsFrame.midX - size.width / 2, y: settingsFrame.minY - size.height - 10)
-        if origin.y < area.minY {
-            origin = NSPoint(x: settingsFrame.maxX + 10, y: settingsFrame.midY - size.height / 2)
-            if origin.x + size.width > area.maxX {
-                origin = NSPoint(x: settingsFrame.minX - size.width - 10, y: settingsFrame.midY - size.height / 2)
-            }
-        }
-        origin.x = min(max(origin.x, area.minX + 8), area.maxX - size.width - 8)
-        origin.y = min(max(origin.y, area.minY + 8), area.maxY - size.height - 8)
-        if window.frame.origin != origin { window.setFrameOrigin(origin) }
+        guard let visible = screen?.visibleFrame else { return }
+        let frame = PermissionGuideGeometry.frame(settings: settingsFrame, visible: visible)
+        if window.frame != frame { window.setFrame(frame, display: true) }
         window.orderFrontRegardless()
     }
-
     private func systemSettingsFrame() -> NSRect? {
         guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").first,
               !app.isHidden,
@@ -121,34 +138,22 @@ final class PermissionGuideWindowController: NSWindowController, NSWindowDelegat
                   (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
                   let bounds = info[kCGWindowBounds as String] as? [String: Any],
                   let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 400, rect.height > 300 else { continue }
+            settingsPID = app.processIdentifier
             return NSRect(x: rect.minX, y: mainTop - rect.maxY, width: rect.width, height: rect.height)
         }
         return nil
     }
-
-    private func containsActiveDrag(_ view: NSView?) -> Bool {
-        guard let view else { return false }
-        if let icon = view as? PermissionAppDragView, icon.isDragging { return true }
-        return view.subviews.contains { containsActiveDrag($0) }
-    }
-
     override func close() {
-        guard !containsActiveDrag(window?.contentView) else { return }
+        guard !presentation.isDragging else { closeRequested = true; return }
         super.close()
     }
-
     func windowWillClose(_ notification: Notification) {
         guard !hasClosed else { return }
         hasClosed = true
         pollTask?.cancel()
         pollTask = nil
-        // Release the owning controller after the window's delegate callback.
+        AppDiagnostics.record("permission-guide-closed", category: "Permission", fields: ["authorized": String(presentation.hasConfirmedGrant)])
         Task { @MainActor [onClose] in onClose() }
     }
-
     deinit { pollTask?.cancel() }
-}
-
-private extension NSSize {
-    var area: CGFloat { max(0, width) * max(0, height) }
 }
