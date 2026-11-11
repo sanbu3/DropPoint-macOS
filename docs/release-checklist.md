@@ -17,7 +17,7 @@ xcodebuild -project DropPointNative.xcodeproj -scheme DropPointNative \
   ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO build
 ```
 
-有新功能或修复时先验证相应回归，再跑全量。2026-11-10 的 2.0.2 结果为 102 项，101 通过、1 项跳过、0 失败。被跳过的是没有系统授权时的真实窗口连续截图测试，不能把跳过记作通过。构建覆盖 arm64 与 x86_64；本机执行测试仅覆盖当前架构和系统。
+有新功能或修复时先验证相应回归，再跑全量。2026-11-12 的 2.0.6 共运行 116 项测试，115 项通过，1 项因屏幕录制未授权跳过。Universal Release 构建覆盖 arm64 与 x86_64，本机执行测试覆盖当前架构和系统。
 
 ## 绑定源码和安装包
 
@@ -43,7 +43,7 @@ python3 scripts/verify-release.py --app /Applications/DropPoint.app \
 ## 尚需实机验证
 
 - 系统授权后的实际连续截图及授权撤销/重新授予。
-- Finder、浏览器、Codex 等来源的真实拖入/拖出及拖放中关闭。
+- Finder 和浏览器的真实拖入、拖出，以及拖放期间关闭文件架。2.0.6 已在 macOS 27.3 实测 Codex 输入框图片拖入。
 - 物理键盘左右 Command、全局晃动和修饰键唤出。
 - 多显示器布局、设置窗口移动、浅/深桌面材质和 macOS 14 等旧系统。
 

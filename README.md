@@ -3,7 +3,7 @@
   <h1>DropPoint for macOS</h1>
   <p>用 SwiftUI 与 AppKit 构建的原生 macOS 浮动文件架。</p>
   <p>
-    <a href="https://github.com/sanbu3/DropPoint-macOS/releases">下载</a>
+    <a href="#安装">安装</a>
     ·
     <a href="#浮动文件架">浮动文件架</a>
     ·
@@ -101,7 +101,9 @@ DropPoint 2.0 没有工作台，也没有额外的文件管理主窗口。应用
 
 ## 安装
 
-1. 前往 [Releases](https://github.com/sanbu3/DropPoint-macOS/releases) 下载最新 DMG。
+要安装当前验证通过的 **2.0.6**，请检出 [v2.0.6](https://github.com/sanbu3/DropPoint-macOS/tree/v2.0.6)，按[从源码构建](#从源码构建)生成应用。
+
+1. 如需历史版本，前往 [Releases](https://github.com/sanbu3/DropPoint-macOS/releases) 下载对应的 DMG。
 2. 打开 DMG，把 `DropPoint.app` 拖入“应用程序”文件夹。
 3. 首次启动时，如 macOS 提示来源未验证，请在 Finder 中右键应用并选择“打开”。
 
@@ -219,9 +221,9 @@ xcodebuild \
 
 ## 版本与验证
 
-当前源码版本为 **2.0.4 / build 13**，更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
+当前源码版本为 **2.0.6 / build 15**。更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
 
-最新一次本机验证：112 项测试，111 通过，1 项因未获得屏幕录制权限而跳过，0 失败；包含拖放关闭、完整动画、左右 Command 松键、截图不覆盖和偏好迁移回归。此结果不等同于所有设备和第三方应用上的无缺陷保证。真实授权后的连续截图、物理晃动/按键唤出、多显示器和旧版 macOS 仍需实机验证。
+2.0.6 在 macOS 27.3 实机验证了从 Codex 输入框拖入图片、创建和关闭文件架。116 项自动化测试中 115 项通过，1 项因屏幕录制未授权跳过。arm64 和 x86_64 的 Universal Release 构建通过。
 
 ## 项目结构
 
