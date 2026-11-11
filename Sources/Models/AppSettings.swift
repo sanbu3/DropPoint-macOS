@@ -216,7 +216,11 @@ final class AppSettings {
     var doubleClickAction: FileDoubleClickAction { didSet { persistPropertyChange() } }
     var autoCollapseExpanded: Bool { didSet { persistPropertyChange() } }
     var focusShelfOnShow: Bool { didSet { persistPropertyChange() } }
+    var keepsEmptyShelvesOpen: Bool { didSet { persistPropertyChange() } }
     var emptyShelfTimeout: Double { didSet { persistPropertyChange() } }
+    var emptyAutoCloseDelay: TimeInterval? {
+        keepsEmptyShelvesOpen || emptyShelfTimeout <= 0 ? nil : emptyShelfTimeout
+    }
     var autoSnapAfterDrop: Bool { didSet { persistPropertyChange() } }
     var autoSnapAfterDropDelay: Double { didSet { persistPropertyChange() } }
     var snapCorner: SnapCorner { didSet { persistPropertyChange() } }
@@ -261,7 +265,10 @@ final class AppSettings {
         ) ?? .open
         autoCollapseExpanded = defaults.object(forKey: Keys.autoCollapseExpanded) as? Bool ?? true
         focusShelfOnShow = defaults.object(forKey: Keys.focusShelfOnShow) as? Bool ?? false
-        emptyShelfTimeout = defaults.object(forKey: Keys.emptyShelfTimeout) as? Double ?? 6
+        let savedEmptyShelfTimeout = defaults.object(forKey: Keys.emptyShelfTimeout) as? Double ?? 6
+        keepsEmptyShelvesOpen = defaults.object(forKey: Keys.keepsEmptyShelvesOpen) as? Bool
+            ?? (savedEmptyShelfTimeout == 0)
+        emptyShelfTimeout = savedEmptyShelfTimeout > 0 ? min(max(savedEmptyShelfTimeout, 1), 30) : 6
         autoSnapAfterDrop = defaults.object(forKey: Keys.autoSnapAfterDrop) as? Bool ?? false
         autoSnapAfterDropDelay = min(
             max(defaults.object(forKey: Keys.autoSnapAfterDropDelay) as? Double ?? 0, 0),
@@ -352,6 +359,7 @@ final class AppSettings {
         doubleClickAction = draft.doubleClickAction
         autoCollapseExpanded = draft.autoCollapseExpanded
         focusShelfOnShow = draft.focusShelfOnShow
+        keepsEmptyShelvesOpen = draft.keepsEmptyShelvesOpen
         emptyShelfTimeout = draft.emptyShelfTimeout
         autoSnapAfterDrop = draft.autoSnapAfterDrop
         autoSnapAfterDropDelay = draft.autoSnapAfterDropDelay
@@ -395,6 +403,7 @@ final class AppSettings {
         defaults.set(doubleClickAction.rawValue, forKey: Keys.doubleClickAction)
         defaults.set(autoCollapseExpanded, forKey: Keys.autoCollapseExpanded)
         defaults.set(focusShelfOnShow, forKey: Keys.focusShelfOnShow)
+        defaults.set(keepsEmptyShelvesOpen, forKey: Keys.keepsEmptyShelvesOpen)
         defaults.set(emptyShelfTimeout, forKey: Keys.emptyShelfTimeout)
         defaults.set(autoSnapAfterDrop, forKey: Keys.autoSnapAfterDrop)
         defaults.set(autoSnapAfterDropDelay, forKey: Keys.autoSnapAfterDropDelay)
@@ -427,6 +436,7 @@ final class AppSettings {
         static let doubleClickAction = "doubleClickAction"
         static let autoCollapseExpanded = "autoCollapseExpanded"
         static let focusShelfOnShow = "focusShelfOnShow"
+        static let keepsEmptyShelvesOpen = "keepsEmptyShelvesOpen"
         static let emptyShelfTimeout = "emptyShelfTimeout"
         // Earlier builds persisted an inaccessible `true` default under
         // `autoSnapAfterDrop`. A new key restores user choice on upgrade.
@@ -466,6 +476,7 @@ struct SettingsDraft: Equatable {
     var doubleClickAction: FileDoubleClickAction
     var autoCollapseExpanded: Bool
     var focusShelfOnShow: Bool
+    var keepsEmptyShelvesOpen: Bool
     var emptyShelfTimeout: Double
     var autoSnapAfterDrop: Bool
     var autoSnapAfterDropDelay: Double
@@ -497,6 +508,7 @@ struct SettingsDraft: Equatable {
         doubleClickAction = settings.doubleClickAction
         autoCollapseExpanded = settings.autoCollapseExpanded
         focusShelfOnShow = settings.focusShelfOnShow
+        keepsEmptyShelvesOpen = settings.keepsEmptyShelvesOpen
         emptyShelfTimeout = settings.emptyShelfTimeout
         autoSnapAfterDrop = settings.autoSnapAfterDrop
         autoSnapAfterDropDelay = settings.autoSnapAfterDropDelay

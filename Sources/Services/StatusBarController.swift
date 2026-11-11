@@ -52,7 +52,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             modifiers: settings.shortcutAction == .spawn ? [.shift] : []
         )
         menu.addItem(newShelf)
-        menu.addItem(item("截取最近窗口（双 Command）", action: #selector(captureWindow)))
+        let captureTitle = settings.doubleCommandScreenshotEnabled ? "截取最近窗口（左右 ⌘）" : "截取最近窗口"
+        menu.addItem(item(captureTitle, action: #selector(captureWindow)))
         let clipboard = item(
             "从剪贴板创建文件架",
             action: #selector(clipboardShelf),

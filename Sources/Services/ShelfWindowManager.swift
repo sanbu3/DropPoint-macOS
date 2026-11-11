@@ -136,6 +136,7 @@ final class ShelfWindowManager {
     private var permissionGuideController: PermissionGuideWindowController?
     private let quickLookPreviewController = QuickLookPreviewController()
     private var emptyAutoCloseTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
+    private var appliedEmptyAutoCloseDelay: TimeInterval?
     private var idleSnapTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var postDropSnapTimers: [ObjectIdentifier: DispatchWorkItem] = [:]
     private var transientIDs = Set<ObjectIdentifier>()
@@ -151,6 +152,7 @@ final class ShelfWindowManager {
         self.settings = settings
         self.inputMonitoringPermission = inputMonitoringPermission
         self.screenRecordingPermission = screenRecordingPermission
+        appliedEmptyAutoCloseDelay = settings.emptyAutoCloseDelay
         inputMonitoringPermission.onShowGuide = { [weak self] in self?.showPermissionGuide() }
         inputMonitoringPermission.onWillRelaunch = { [weak self] in self?.preserveShelvesForRelaunch() }
         screenRecordingPermission.onWillRelaunch = { [weak self] in self?.preserveShelvesForRelaunch() }
@@ -189,7 +191,7 @@ final class ShelfWindowManager {
             }
 
             shakeGeneratedIDs.remove(identifier)
-            if controller.store.items.isEmpty {
+            if canAutoCloseEmptyShelf(controller) {
                 controller.closeAnimated()
             }
         }
@@ -238,22 +240,29 @@ final class ShelfWindowManager {
     }
 
     private func closeEmptyShelves() {
-        for controller in shelves where controller.store.items.isEmpty {
+        for controller in shelves where canAutoCloseEmptyShelf(controller) {
             controller.closeAnimated()
         }
     }
 
+    private func canAutoCloseEmptyShelf(_ controller: ShelfWindowController) -> Bool {
+        settings.emptyAutoCloseDelay != nil
+            && controller.store.items.isEmpty
+            && !controller.store.keepsEmptyShelfAfterOptionClear
+    }
+
     private func scheduleEmptyAutoClose(_ controller: ShelfWindowController) {
         cancelEmptyAutoClose(controller)
-        let timeout = settings.emptyShelfTimeout
-        guard timeout > 0, !controller.store.keepsEmptyShelfAfterOptionClear else { return }
+        guard let timeout = settings.emptyAutoCloseDelay, canAutoCloseEmptyShelf(controller) else { return }
+        let identifier = ObjectIdentifier(controller)
         let workItem = DispatchWorkItem { [weak self, weak controller] in
-            guard let self, let controller,
-                  controller.store.items.isEmpty,
+            guard let self else { return }
+            self.emptyAutoCloseTimers.removeValue(forKey: identifier)
+            guard let controller, self.canAutoCloseEmptyShelf(controller),
                   self.shelves.contains(where: { $0 === controller }) else { return }
             controller.closeAnimated()
         }
-        emptyAutoCloseTimers[ObjectIdentifier(controller)] = workItem
+        emptyAutoCloseTimers[identifier] = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: workItem)
     }
 
@@ -374,6 +383,10 @@ final class ShelfWindowManager {
     func updateInteractions() {
         shelves.forEach { applySettings(to: $0.store) }
         shelves.forEach(scheduleIdleSnap)
+        if appliedEmptyAutoCloseDelay != settings.emptyAutoCloseDelay {
+            appliedEmptyAutoCloseDelay = settings.emptyAutoCloseDelay
+            shelves.forEach(scheduleEmptyAutoClose)
+        }
     }
 
     // MARK: - Pinned and recent shelves

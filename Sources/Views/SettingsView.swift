@@ -390,7 +390,7 @@ struct SettingsView: View {
                     toggleSetting("显示快捷操作栏", detail: "在展开的文件架中显示常用操作按钮。", icon: "bolt.horizontal", value: $draft.showQuickActionBar)
                     Divider().padding(.leading, 54)
                     toggleSetting(
-                        "双 Command 截图",
+                        "左右 Command 同按截图",
                         detail: "同时按下左右 Command，截取光标下最近的窗口并飞入文件架。需要屏幕录制权限。",
                         icon: "camera.viewfinder",
                         value: $draft.doubleCommandScreenshotEnabled
@@ -442,13 +442,23 @@ struct SettingsView: View {
             }
 
             DropPointSettingsCard {
-                sliderSetting(
-                    "空文件架自动关闭",
-                    detail: draft.emptyShelfTimeout == 0 ? "永不自动关闭" : "等待 \(Int(draft.emptyShelfTimeout)) 秒",
-                    icon: "timer",
-                    value: $draft.emptyShelfTimeout,
-                    range: 0...30
-                )
+                VStack(spacing: 0) {
+                    toggleSetting(
+                        "不自动关闭空文件架",
+                        detail: "开启后，空文件架会保留，直到手动关闭。",
+                        icon: "rectangle.on.rectangle",
+                        value: $draft.keepsEmptyShelvesOpen
+                    )
+                    Divider().padding(.leading, 54)
+                    sliderSetting(
+                        "空文件架自动关闭",
+                        detail: "等待 \(Int(draft.emptyShelfTimeout)) 秒",
+                        icon: "timer",
+                        value: $draft.emptyShelfTimeout,
+                        range: 1...30
+                    )
+                    .disabled(draft.keepsEmptyShelvesOpen)
+                }
             }
         }
     }
@@ -719,7 +729,7 @@ struct SettingsView: View {
         value: Binding<Bool>
     ) -> some View {
         settingRow(icon: icon, title: title, detail: detail) {
-            Toggle("", isOn: value).labelsHidden()
+            Toggle(title, isOn: value).labelsHidden()
         }
     }
 
@@ -733,6 +743,7 @@ struct SettingsView: View {
         settingRow(icon: icon, title: title, detail: detail) {
             Slider(value: value, in: range, step: 1)
                 .frame(width: 170)
+                .accessibilityLabel(title)
                 .focusEffectDisabled()
         }
     }

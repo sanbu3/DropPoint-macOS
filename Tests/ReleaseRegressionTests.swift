@@ -4,6 +4,56 @@ import XCTest
 
 @MainActor
 final class ReleaseRegressionTests: XCTestCase {
+    func testKeepEmptyShelvesCancelsPendingCloseAndPreventsReplacement() async throws {
+        let suite = "droppoint-empty-shelf-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+        settings.emptyShelfTimeout = 0.1
+        let manager = ShelfWindowManager(
+            settings: settings,
+            inputMonitoringPermission: InputMonitoringPermissionService(),
+            screenRecordingPermission: ScreenRecordingPermissionService()
+        )
+        settings.onChange = { [weak manager] in manager?.updateInteractions() }
+
+        let existing = manager.spawn()
+        defer { existing.close() }
+        var draft = SettingsDraft(settings)
+        draft.keepsEmptyShelvesOpen = true
+        settings.apply(draft)
+        let transient = manager.spawn(transient: true)
+        defer { transient.close() }
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertFalse(existing.store.isClosed)
+        XCTAssertFalse(transient.store.isClosed)
+
+        existing.close()
+        XCTAssertTrue(existing.store.isClosed)
+        draft.keepsEmptyShelvesOpen = false
+        settings.apply(draft)
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertTrue(transient.store.isClosed)
+    }
+
+    func testZeroTimeoutMigratesToKeepEmptyShelvesOpen() throws {
+        let suite = "droppoint-empty-shelf-upgrade-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(0, forKey: "emptyShelfTimeout")
+        let settings = AppSettings(defaults: defaults)
+        XCTAssertTrue(settings.keepsEmptyShelvesOpen)
+        XCTAssertNil(settings.emptyAutoCloseDelay)
+
+        var draft = SettingsDraft(settings)
+        draft.emptyShelfTimeout = 12
+        settings.apply(draft)
+        let reloaded = AppSettings(defaults: defaults)
+        XCTAssertTrue(reloaded.keepsEmptyShelvesOpen)
+        reloaded.keepsEmptyShelvesOpen = false
+        XCTAssertEqual(reloaded.emptyAutoCloseDelay, 12)
+    }
+
     func testReleasingLeftCommandDoesNotLeaveAPhantomChord() throws {
         let monitor = DoubleCommandMonitor()
         var triggers = 0

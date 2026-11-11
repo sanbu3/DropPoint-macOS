@@ -118,6 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         doubleCommandMonitor = DoubleCommandMonitor()
         doubleCommandMonitor.isEnabled = settings.doubleCommandScreenshotEnabled
         doubleCommandMonitor.onTrigger = { [weak self] in
+            AppDiagnostics.record("capture-triggered", category: "Capture", fields: ["source": "both-command-keys"])
             self?.manager.captureNearestWindowToShelf()
         }
         doubleCommandMonitor.start()

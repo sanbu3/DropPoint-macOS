@@ -15,7 +15,6 @@ struct DropPointApp: App {
                 Button("从剪贴板新建文件架") { appDelegate.newShelfFromClipboard() }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("截取最近窗口") { appDelegate.captureNearestWindow() }
-                    .keyboardShortcut("6", modifiers: [.command, .shift])
             }
 
             CommandGroup(replacing: .appSettings) {
