@@ -311,6 +311,38 @@ final class ClipboardServiceTests: XCTestCase {
 
 @MainActor
 final class FileDropImporterTests: XCTestCase {
+    func testBrowserImageImportsEvenWhenAdvertisedFilePromiseNeverDelivers() async throws {
+        let image = NSImage(size: NSSize(width: 24, height: 24))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: 24, height: 24).fill()
+        image.unlockFocus()
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: try XCTUnwrap(image.tiffRepresentation)))
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+
+        let item = NSPasteboardItem()
+        item.setData(png, forType: .png)
+        item.setString("https://example.invalid/image.png", forType: .URL)
+        item.setString("public.png", forType: .init("com.apple.pasteboard.promised-file-content-type"))
+        item.setString("file:///tmp/DropPointBrowserFixture.png", forType: .init("com.apple.pasteboard.promised-file-url"))
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        XCTAssertTrue(pasteboard.writeObjects([item]))
+        XCTAssertEqual(pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self])?.count, 1)
+
+        let received = expectation(description: "inline image is delivered without waiting for the promise")
+        var imported: [URL] = []
+        XCTAssertTrue(FileDropImporter.importFiles(from: pasteboard) { event in
+            if case .imported(let urls) = event { imported = urls }
+            received.fulfill()
+        })
+        await fulfillment(of: [received], timeout: 3)
+        let url = try XCTUnwrap(imported.first)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        XCTAssertEqual(url.pathExtension, "png")
+        XCTAssertNotNil(NSImage(contentsOf: url))
+    }
+
     func testRawDraggedImageBecomesARealPNGFile() async throws {
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }

@@ -97,6 +97,14 @@ enum FileDropImporter {
             return true
         }
 
+        // Chromium can advertise both image bytes and a legacy file promise
+        // for the same item. Copy the bytes while its drag still owns them.
+        // For multiple items, prefer promises so every file can be delivered.
+        let isSingleItem = pasteboard.pasteboardItems?.count == 1
+        if isSingleItem, importImage(from: pasteboard, importID: importID, deliver: deliver) {
+            return true
+        }
+
         if let promises = pasteboard.readObjects(
             forClasses: [NSFilePromiseReceiver.self]
         ) as? [NSFilePromiseReceiver], !promises.isEmpty {
@@ -128,17 +136,7 @@ enum FileDropImporter {
             return true
         }
 
-        for type in imageDataTypes {
-            guard pasteboard.availableType(from: [type]) != nil else { continue }
-            AppDiagnostics.record("import-image-read", category: "Import", fields: ["import": importID, "type": type.rawValue])
-            guard let data = pasteboard.data(forType: type) else { continue }
-            AppDiagnostics.record("import-image-copied", category: "Import", fields: ["import": importID, "bytes": String(data.count)])
-            importQueue.addOperation {
-                let url = writePNG(data)
-                Task { @MainActor in
-                    deliver(url.map { .imported([$0]) } ?? .failed("无法读取或保存拖入的图片。"))
-                }
-            }
+        if !isSingleItem, importImage(from: pasteboard, importID: importID, deliver: deliver) {
             return true
         }
 
@@ -153,6 +151,27 @@ enum FileDropImporter {
             return true
         }
         AppDiagnostics.record("import-unsupported", category: "Import", fields: ["import": importID])
+        return false
+    }
+
+    private static func importImage(
+        from pasteboard: NSPasteboard,
+        importID: String,
+        deliver: @MainActor @escaping @Sendable (ImportEvent) -> Void
+    ) -> Bool {
+        let advertisedTypes = Set(pasteboard.types ?? [])
+        for type in imageDataTypes where advertisedTypes.contains(type) {
+            AppDiagnostics.record("import-image-read", category: "Import", fields: ["import": importID, "type": type.rawValue])
+            guard let data = pasteboard.data(forType: type), !data.isEmpty else { continue }
+            AppDiagnostics.record("import-image-copied", category: "Import", fields: ["import": importID, "bytes": String(data.count)])
+            importQueue.addOperation {
+                let url = writePNG(data)
+                Task { @MainActor in
+                    deliver(url.map { .imported([$0]) } ?? .failed("无法读取或保存拖入的图片。"))
+                }
+            }
+            return true
+        }
         return false
     }
 
