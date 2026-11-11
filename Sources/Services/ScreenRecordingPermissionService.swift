@@ -5,14 +5,11 @@ import Observation
 @MainActor
 @Observable
 final class ScreenRecordingPermissionService {
-    enum State: Equatable {
-        case notGranted
-        case requiresRelaunch
-        case active
-    }
+    typealias State = SystemPermissionState
 
     var onWillRelaunch: (() -> Void)?
 
+    @ObservationIgnored private let preflight: () -> Bool
     private let wasGrantedAtLaunch: Bool
     private(set) var state: State {
         didSet {
@@ -20,14 +17,15 @@ final class ScreenRecordingPermissionService {
         }
     }
 
-    init() {
-        let granted = CGPreflightScreenCaptureAccess()
+    init(preflight: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() }) {
+        self.preflight = preflight
+        let granted = preflight()
         wasGrantedAtLaunch = granted
         state = granted ? .active : .notGranted
     }
 
     func refresh() {
-        guard CGPreflightScreenCaptureAccess() else {
+        guard preflight() else {
             state = .notGranted
             return
         }
@@ -60,14 +58,6 @@ final class ScreenRecordingPermissionService {
 
     func relaunch() {
         AppRelaunchService.relaunch { onWillRelaunch?() }
-    }
-
-    var title: String {
-        switch state {
-        case .notGranted: "允许截取最近窗口"
-        case .requiresRelaunch: "屏幕录制需要重新启动"
-        case .active: "屏幕录制已启用"
-        }
     }
 
     var detail: String {

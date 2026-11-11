@@ -4,6 +4,22 @@ import XCTest
 
 @MainActor
 final class PermissionGuideTests: XCTestCase {
+    func testScreenRecordingReportsPendingRelaunchAndRevocation() {
+        var granted = false
+        let permission = ScreenRecordingPermissionService(preflight: { granted })
+        XCTAssertEqual(permission.state, .notGranted)
+
+        granted = true
+        permission.refresh()
+        XCTAssertEqual(permission.state, .requiresRelaunch)
+        let relaunched = ScreenRecordingPermissionService(preflight: { granted })
+        XCTAssertEqual(relaunched.state, .active)
+
+        granted = false
+        relaunched.refresh()
+        XCTAssertEqual(relaunched.state, .notGranted)
+    }
+
     func testGuideAlignsWithSettingsRightContentAtNormalAndWideSizes() {
         for width: CGFloat in [668, 754, 920] {
             let settings = NSRect(x: 100, y: 300, width: width, height: 600)

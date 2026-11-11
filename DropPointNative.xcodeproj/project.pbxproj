@@ -15,6 +15,7 @@
 		1C4906749382E2925A0486B0 /* NativeTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFE4754564846B0827AD0BF /* NativeTooltip.swift */; };
 		20F02B96F51F13B9E4EF6CA5 /* PermissionGuideTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261650BAA90BE7B599BDC1B6 /* PermissionGuideTests.swift */; };
 		242FF4C03E5A443E28833862 /* InputMonitoringPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB01643E4205F7818E44590D /* InputMonitoringPermissionService.swift */; };
+		24927A307C306EE8FD334526 /* SystemPermissionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A848E33FD3ABC8DCFD812A4 /* SystemPermissionState.swift */; };
 		255B52FD63A42E32810A7724 /* ShelfDropHostingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2404CF97215AEC8D681563B9 /* ShelfDropHostingView.swift */; };
 		267599EB0F05CCD940B1A9BD /* ExpandedShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C04420189B9E761585C681 /* ExpandedShelfView.swift */; };
 		27217171884A3DEE8439B72A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F0C0338FC41775B78A51506 /* SettingsView.swift */; };
@@ -128,6 +129,7 @@
 		92BA9E0F18A579244979FDBE /* WindowScreenshotSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScreenshotSmokeTests.swift; sourceTree = "<group>"; };
 		953C9045C611D225D9291597 /* Cat_in_Box Timeline.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Cat_in_Box Timeline.png"; sourceTree = "<group>"; };
 		98547C2AB6AC4BC7EBA22C93 /* ShelfArtworkPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfArtworkPlayer.swift; sourceTree = "<group>"; };
+		9A848E33FD3ABC8DCFD812A4 /* SystemPermissionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemPermissionState.swift; sourceTree = "<group>"; };
 		9AAF80CD078413828F62D5D0 /* ProjectAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAttribution.swift; sourceTree = "<group>"; };
 		A6B0A56BCF34E9878EEBB5C8 /* Empty Box Timeline.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Empty Box Timeline.png"; sourceTree = "<group>"; };
 		A70CEC862665A410BACE399E /* SettingsGlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGlassComponents.swift; sourceTree = "<group>"; };
@@ -310,6 +312,7 @@
 				D60444CC808E3CC2338FE8C1 /* ShelfItem.swift */,
 				22BF155EBBB86457BB19A8D4 /* ShelfStore.swift */,
 				3142AE10D444641B7D35FDDA /* ShelfTint.swift */,
+				9A848E33FD3ABC8DCFD812A4 /* SystemPermissionState.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -490,6 +493,7 @@
 				EB61B0290C19141C4F3B26E6 /* ShelfWindowController.swift in Sources */,
 				FD25F17DD58E040ED6CA8722 /* ShelfWindowManager.swift in Sources */,
 				58CCE6109ACA4EE3F99A359E /* StatusBarController.swift in Sources */,
+				24927A307C306EE8FD334526 /* SystemPermissionState.swift in Sources */,
 				E31D540E738F163A916DCB94 /* WindowScreenshotService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -650,7 +654,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -687,7 +691,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;

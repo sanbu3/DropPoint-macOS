@@ -40,6 +40,37 @@ struct DropPointSettingsCard<Content: View>: View {
     }
 }
 
+struct DropPointPermissionBadge: View {
+    let state: SystemPermissionState
+    let permissionName: String
+    var showsPermissionName = false
+
+    private var status: (text: String, icon: String, tint: Color) {
+        switch state {
+        case .active: ("已授权", "checkmark.circle.fill", .green)
+        case .notGranted: ("未授权", "lock.circle.fill", .orange)
+        case .requiresRelaunch: ("待重启", "arrow.clockwise.circle.fill", .orange)
+        }
+    }
+
+    var body: some View {
+        let status = status
+        HStack(spacing: 5) {
+            Image(systemName: status.icon)
+                .foregroundStyle(status.tint)
+            Text(showsPermissionName ? "\(permissionName) · \(status.text)" : status.text)
+                .foregroundStyle(.primary)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(status.tint.opacity(0.13), in: Capsule())
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(permissionName) \(status.text)")
+    }
+}
+
 struct DropPointLogoImage: View {
     let size: CGFloat
 

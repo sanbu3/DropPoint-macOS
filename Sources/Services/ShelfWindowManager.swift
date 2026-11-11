@@ -635,6 +635,8 @@ final class ShelfWindowManager {
     }
 
     func showSettings() {
+        inputMonitoringPermission.refresh()
+        screenRecordingPermission.refresh()
         if let window = settingsWindowController?.window {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -645,7 +647,6 @@ final class ShelfWindowManager {
             settings: settings,
             inputMonitoringPermission: inputMonitoringPermission,
             screenRecordingPermission: screenRecordingPermission,
-            onShowPermissionGuide: { [weak self] in self?.showPermissionGuide() },
             onDismiss: { [weak self] in self?.settingsWindowController?.window?.close() }
         )
         let window = DropPointSettingsWindow(

@@ -17,7 +17,7 @@ xcodebuild -project DropPointNative.xcodeproj -scheme DropPointNative \
   ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO build
 ```
 
-有新功能或修复时先验证相应回归，再跑全量。2026-11-12 的 2.0.7 共运行 118 项测试，117 项通过，1 项因屏幕录制未授权跳过。Universal Release 构建覆盖 arm64 与 x86_64，本机执行测试覆盖当前架构和系统。
+有新功能或修复时先验证相应回归，再跑全量。2026-11-12 的 2.0.7 共运行 119 项测试，118 项通过，1 项因屏幕录制未授权跳过。Universal Release 构建覆盖 arm64 与 x86_64，本机执行测试覆盖当前架构和系统。
 
 ## 绑定源码和安装包
 

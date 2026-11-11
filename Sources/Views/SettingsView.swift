@@ -49,7 +49,6 @@ struct SettingsView: View {
     let settings: AppSettings
     let inputMonitoringPermission: InputMonitoringPermissionService
     let screenRecordingPermission: ScreenRecordingPermissionService
-    let onShowPermissionGuide: () -> Void
     let onDismiss: () -> Void
 
     @State private var draft: SettingsDraft
@@ -62,13 +61,11 @@ struct SettingsView: View {
         settings: AppSettings,
         inputMonitoringPermission: InputMonitoringPermissionService,
         screenRecordingPermission: ScreenRecordingPermissionService,
-        onShowPermissionGuide: @escaping () -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.settings = settings
         self.inputMonitoringPermission = inputMonitoringPermission
         self.screenRecordingPermission = screenRecordingPermission
-        self.onShowPermissionGuide = onShowPermissionGuide
         self.onDismiss = onDismiss
         _draft = State(initialValue: SettingsDraft(settings))
     }
@@ -282,16 +279,12 @@ struct SettingsView: View {
         VStack(spacing: 18) {
             DropPointSettingsCard {
                 settingRow(
-                    icon: permissionIcon,
-                    title: inputMonitoringPermission.title,
+                    icon: "hand.raised.fill",
+                    title: "输入监控",
                     detail: inputMonitoringPermission.detail
                 ) {
                     HStack(spacing: 8) {
-                        Button("权限引导…") {
-                            onShowPermissionGuide()
-                        }
-                        .buttonStyle(.borderless)
-                        .controlSize(.small)
+                        DropPointPermissionBadge(state: inputMonitoringPermission.state, permissionName: "输入监控")
                         Button(inputMonitoringPermission.buttonTitle) {
                             inputMonitoringPermission.performPrimaryAction()
                         }
@@ -302,14 +295,17 @@ struct SettingsView: View {
 
             DropPointSettingsCard {
                 settingRow(
-                    icon: screenRecordingIcon,
-                    title: screenRecordingPermission.title,
+                    icon: "rectangle.dashed.badge.record",
+                    title: "屏幕录制",
                     detail: screenRecordingPermission.detail
                 ) {
-                    Button(screenRecordingPermission.buttonTitle) {
-                        screenRecordingPermission.performPrimaryAction()
+                    HStack(spacing: 8) {
+                        DropPointPermissionBadge(state: screenRecordingPermission.state, permissionName: "屏幕录制")
+                        Button(screenRecordingPermission.buttonTitle) {
+                            screenRecordingPermission.performPrimaryAction()
+                        }
+                        .controlSize(.small)
                     }
-                    .controlSize(.small)
                 }
             }
 
@@ -389,12 +385,17 @@ struct SettingsView: View {
                     Divider().padding(.leading, 54)
                     toggleSetting("显示快捷操作栏", detail: "在展开的文件架中显示常用操作按钮。", icon: "bolt.horizontal", value: $draft.showQuickActionBar)
                     Divider().padding(.leading, 54)
-                    toggleSetting(
-                        "左右 Command 同按截图",
-                        detail: "同时按下左右 Command，截取光标下最近的窗口并飞入文件架。需要屏幕录制权限。",
+                    settingRow(
                         icon: "camera.viewfinder",
-                        value: $draft.doubleCommandScreenshotEnabled
-                    )
+                        title: "左右 Command 同按截图",
+                        detail: "同时按下左右 Command，截取光标下最近的窗口并放入文件架。"
+                    ) {
+                        HStack(spacing: 10) {
+                            DropPointPermissionBadge(state: screenRecordingPermission.state, permissionName: "屏幕录制", showsPermissionName: true)
+                            Toggle("左右 Command 同按截图", isOn: $draft.doubleCommandScreenshotEnabled)
+                                .labelsHidden()
+                        }
+                    }
                     Divider().padding(.leading, 54)
                     toggleSetting("窗口显示时获取焦点", detail: "文件架默认不抢焦点；启用后将成为活动窗口。", icon: "scope", value: $draft.focusShelfOnShow)
                     Divider().padding(.leading, 54)
@@ -861,22 +862,6 @@ struct SettingsView: View {
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.4.1"
-    }
-
-    private var permissionIcon: String {
-        switch inputMonitoringPermission.state {
-        case .notGranted: "hand.raised.fill"
-        case .requiresRelaunch: "arrow.clockwise.circle.fill"
-        case .active: "checkmark.shield.fill"
-        }
-    }
-
-    private var screenRecordingIcon: String {
-        switch screenRecordingPermission.state {
-        case .notGranted: "rectangle.dashed.badge.record"
-        case .requiresRelaunch: "arrow.clockwise.circle.fill"
-        case .active: "checkmark.shield.fill"
-        }
     }
 
     private func addWatchedDirectory() {

@@ -5,11 +5,7 @@ import Observation
 @MainActor
 @Observable
 final class InputMonitoringPermissionService {
-    enum State: Equatable {
-        case notGranted
-        case requiresRelaunch
-        case active
-    }
+    typealias State = SystemPermissionState
 
     var onShowGuide: (() -> Void)?
     var onWillRelaunch: (() -> Void)?
@@ -58,14 +54,6 @@ final class InputMonitoringPermissionService {
 
     func relaunch() {
         AppRelaunchService.relaunch { onWillRelaunch?() }
-    }
-
-    var title: String {
-        switch state {
-        case .notGranted: "启用晃动与按键唤出"
-        case .requiresRelaunch: "需要重新启动 DropPoint"
-        case .active: "输入监控已启用"
-        }
     }
 
     var detail: String {

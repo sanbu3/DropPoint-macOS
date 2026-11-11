@@ -220,9 +220,9 @@ xcodebuild \
 
 ## 版本与验证
 
-当前源码版本为 **2.0.7 / build 16**。更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
+当前源码版本为 **2.0.7 / build 17**。更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
 
-2.0.6 在 macOS 27.3 实机验证了从 Codex 输入框拖入图片、创建和关闭文件架。2.0.7 共运行 118 项自动化测试，117 项通过，1 项因屏幕录制未授权跳过。arm64 和 x86_64 的 Universal Release 构建通过。
+2.0.6 在 macOS 27.3 实机验证了从 Codex 输入框拖入图片、创建和关闭文件架。2.0.7 共运行 119 项自动化测试，118 项通过，1 项因屏幕录制未授权跳过。arm64 和 x86_64 的 Universal Release 构建通过。
 
 ## 项目结构
 
