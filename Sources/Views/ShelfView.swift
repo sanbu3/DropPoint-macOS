@@ -201,8 +201,9 @@ struct ShelfView: View {
         let emphasisProgress = min(max((progress - 0.22) / 0.78, 0), 1)
         let active = store.isHovered || store.isDropTargeted || store.isFocused
         let restingWidth: CGFloat = active ? 54 : 38
-        let width: CGFloat = holding ? 126 : restingWidth + (110 - restingWidth) * lengthProgress
-        let height: CGFloat = holding ? 9 : 4 + 2 * emphasisProgress
+        let dot = store.showsDragActions && !holding
+        let width: CGFloat = dot ? 7 : (holding ? 126 : restingWidth + (110 - restingWidth) * lengthProgress)
+        let height: CGFloat = dot ? 7 : (holding ? 9 : 4 + 2 * emphasisProgress)
 
         return VStack(spacing: 5) {
             Spacer()
@@ -227,6 +228,7 @@ struct ShelfView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(holding ? "清空进度" : "文件架手柄")
             .accessibilityValue(holding ? "\(Int(store.optionClearProgress * 100))%" : "")
+            .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: dot)
             .animation(reduceMotion ? nil : .smooth(duration: 0.16), value: holding)
             .padding(.bottom, 7)
         }

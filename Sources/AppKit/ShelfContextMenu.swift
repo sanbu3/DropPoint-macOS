@@ -40,7 +40,7 @@ enum ShelfContextMenuFactory {
             appendGroup(viewing)
             appendGroup(enabled.filter { [.airDrop, .messages, .mail].contains($0) }.map(actionItem))
             appendGroup(enabled.filter { [.copyPaths, .copyTo, .moveTo].contains($0) }.map(actionItem))
-            appendGroup(enabled.filter { [.compressImages, .createPDF, .archive].contains($0) }.map(actionItem))
+            appendGroup(enabled.filter { [.compressImages, .resizeImages, .createPDF, .archive].contains($0) }.map(actionItem))
 
             if !store.customActions.isEmpty {
                 let parent = NSMenuItem(title: "自定义操作", action: nil, keyEquivalent: "")

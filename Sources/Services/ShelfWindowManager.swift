@@ -247,6 +247,7 @@ final class ShelfWindowManager {
 
     private func canAutoCloseEmptyShelf(_ controller: ShelfWindowController) -> Bool {
         settings.emptyAutoCloseDelay != nil
+            && !controller.store.isDropTargeted
             && controller.store.items.isEmpty
             && !controller.store.keepsEmptyShelfAfterOptionClear
     }
@@ -771,6 +772,16 @@ final class ShelfWindowManager {
             guard let self, let controller else { return }
             self.quickLookPreviewController.show(url, for: controller) { [weak controller] in
                 controller?.window
+            }
+        }
+        store.onDropTargetActivityChanged = { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            if controller.store.isDropTargeted {
+                self.cancelEmptyAutoClose(controller)
+                self.cancelIdleSnap(controller)
+            } else {
+                self.scheduleEmptyAutoClose(controller)
+                self.scheduleIdleSnap(controller)
             }
         }
         store.onDropAccepted = { [weak self, weak controller] in

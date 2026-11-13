@@ -224,7 +224,7 @@ final class DragPassThroughNSView: NSView {
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         guard !draggingRemainsInsideShelf(sender) else { return }
-        dropStore?.updateDropTargeted(false)
+        dropStore?.scheduleDropTargetExit()
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
@@ -338,7 +338,7 @@ final class DragPassThroughNSView: NSView {
     }
 
     private func draggingRemainsInsideShelf(_ sender: NSDraggingInfo?) -> Bool {
-        guard let sender, let contentView = window?.contentView else { return true }
+        guard let sender, let contentView = window?.contentView else { return false }
         let point = contentView.convert(sender.draggingLocation, from: nil)
         return contentView.bounds.contains(point)
     }

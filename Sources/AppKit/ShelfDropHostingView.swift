@@ -177,7 +177,7 @@ final class ShelfDropHostingView: NSView {
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         guard !draggingRemainsInsideShelf(sender) else { return }
-        store?.updateDropTargeted(false)
+        store?.scheduleDropTargetExit()
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
@@ -268,7 +268,7 @@ final class ShelfDropHostingView: NSView {
     /// pointer never left the shelf window. Only a physical window exit should
     /// clear the shared targeting state.
     private func draggingRemainsInsideShelf(_ sender: NSDraggingInfo?) -> Bool {
-        guard let sender, let contentView = window?.contentView else { return true }
+        guard let sender, let contentView = window?.contentView else { return false }
         let point = contentView.convert(sender.draggingLocation, from: nil)
         return contentView.bounds.contains(point)
     }

@@ -11,6 +11,8 @@ final class ShelfStore {
     var selectedIDs: Set<String> = []
     var isExpanded = false
     var isDropTargeted = false
+    var targetedDragAction: ShelfAction?
+    var showsDragActions: Bool { isDropTargeted && showQuickActionBar && !isDraggingOut }
     var isFocused = false
     var isKeyboardNavigating = false
     var isHovered = false
@@ -44,6 +46,9 @@ final class ShelfStore {
     var customActions: [CustomShelfAction] = []
     var reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
+    @ObservationIgnored var onDropTargetChanged: (() -> Void)?
+    @ObservationIgnored var onDropTargetActivityChanged: (() -> Void)?
+    @ObservationIgnored private var dropTargetExitTask: Task<Void, Never>?
     @ObservationIgnored var onOptionClearPresentationChanged: (() -> Void)?
     @ObservationIgnored var onClose: (() -> Void)?
     @ObservationIgnored var onCollapse: (() -> Void)?
@@ -96,10 +101,25 @@ final class ShelfStore {
     }
 
     func updateDropTargeted(_ targeted: Bool) {
+        dropTargetExitTask?.cancel()
+        dropTargetExitTask = nil
+        if !targeted { targetedDragAction = nil }
         guard isDropTargeted != targeted else { return }
         isDropTargeted = targeted
+        onDropTargetChanged?()
+        if !isClosed { onDropTargetActivityChanged?() }
         guard targeted else { return }
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+    }
+
+    func scheduleDropTargetExit() {
+        guard isDropTargeted else { return }
+        dropTargetExitTask?.cancel()
+        dropTargetExitTask = Task { @MainActor [weak self] in
+            // A separate native destination receives its enter event after the shelf exits.
+            do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+            self?.updateDropTargeted(false)
+        }
     }
 
     @discardableResult
@@ -287,7 +307,7 @@ final class ShelfStore {
         let idsByURL = Dictionary(uniqueKeysWithValues: selected.map { ($0.url.standardizedFileURL, $0.id) })
         ShelfActionService.perform(action, urls: selected.map(\.url)) { [weak self] succeeded in
             AppDiagnostics.record("shelf-action-completed", category: "Action", fields: ["shelf": self?.diagnosticID ?? "released", "succeeded": String(succeeded.count)])
-            if action == .compressImages {
+            if action == .compressImages || action == .resizeImages {
                 self?.add(urls: Array(succeeded))
                 return
             }
@@ -395,7 +415,7 @@ final class ShelfStore {
         pullClearTask = nil
         cancelThumbnailTasks(for: Set(thumbnailTasks.keys))
         isClearing = false
-        isDropTargeted = false
+        updateDropTargeted(false)
         isHovered = false
         isPullClearing = false
         isDismissGestureActive = false

@@ -71,6 +71,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     private var optionGesture = OptionHoldClearGesture()
     private var optionHoldTimer: Timer?
     private(set) var optionClearHintPanel: NSPanel?
+    private(set) var dragActionsPanel: NSPanel?
 
     init(store: ShelfStore, alwaysOnTop: Bool) {
         self.store = store
@@ -114,6 +115,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             self?.updateKeyboardNavigation(for: event)
             self?.handleOptionGestureEvent(event)
         }
+        store.onDropTargetChanged = { [weak self] in self?.updateDragActionsPanel() }
         store.onOptionClearPresentationChanged = { [weak self] in
             self?.updateOptionClearHint()
         }
@@ -322,6 +324,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowDidMove(_ notification: Notification) {
+        updateDragActionsPanel()
         updateOptionClearHint()
         guard !isAnimatingOut, !isProgrammaticallyMoving else { return }
         snapWorkItem?.cancel()
@@ -334,10 +337,12 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowDidResize(_ notification: Notification) {
+        updateDragActionsPanel()
         updateOptionClearHint()
     }
 
     func windowDidChangeScreen(_ notification: Notification) {
+        updateDragActionsPanel()
         updateOptionClearHint()
     }
 
@@ -353,6 +358,8 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         cancelOptionHold()
         store.onOptionClearPresentationChanged = nil
         store.cancelPendingWork()
+        updateDragActionsPanel()
+        store.onDropTargetChanged = nil
         snapWorkItem?.cancel()
         onWillDismiss?(self)
         if let closeKeyMonitor { NSEvent.removeMonitor(closeKeyMonitor) }
@@ -428,6 +435,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             return
         }
         outDisposition = disposition
+        store.updateDropTargeted(false)
         store.isHovered = false
         visibilityGeneration += 1
         let generation = visibilityGeneration
@@ -508,6 +516,48 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         default:
             break
         }
+    }
+
+    private func updateDragActionsPanel() {
+        guard store.showsDragActions, !hasClosed, !isAnimatingOut,
+              let window, window.isVisible, let screen = window.screen else {
+            if let panel = dragActionsPanel {
+                window?.removeChildWindow(panel)
+                panel.orderOut(nil)
+                dragActionsPanel = nil
+            }
+            return
+        }
+
+        let size = ShelfDragActionsView.panelSize
+        let area = screen.visibleFrame
+        let y = window.frame.minY - size.height >= area.minY
+            ? window.frame.minY - size.height
+            : window.frame.maxY
+        let origin = ShelfGeometry.clamp(
+            NSPoint(x: window.frame.midX - size.width / 2, y: y), size: size, to: area
+        )
+        let frame = NSRect(origin: origin, size: size)
+        if let panel = dragActionsPanel {
+            if panel.frame != frame { panel.setFrame(frame, display: true) }
+            return
+        }
+
+        let panel = ShelfHintPanel(
+            contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false
+        )
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.animationBehavior = .none
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.appearance = window.effectiveAppearance
+        panel.contentView = ShelfDragActionsView(store: store)
+        dragActionsPanel = panel
+        window.addChildWindow(panel, ordered: .above)
+        panel.orderFront(nil)
     }
 
     private func updateOptionClearHint() {

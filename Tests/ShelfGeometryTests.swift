@@ -343,6 +343,27 @@ final class FileDropImporterTests: XCTestCase {
         XCTAssertNotNil(NSImage(contentsOf: url))
     }
 
+    func testChromiumHTMLImagePromiseUsesTheImageSourceInsteadOfTheArticleLink() throws {
+        let item = NSPasteboardItem()
+        item.setString("https://mp.weixin.qq.com/s/example", forType: .URL)
+        item.setString("public.webp", forType: .init("com.apple.pasteboard.promised-file-content-type"))
+        item.setString("file:///tmp/BrowserFixture.webp", forType: .init("com.apple.pasteboard.promised-file-url"))
+        item.setString(
+            """
+            <a href="https://mp.weixin.qq.com/s/example"><img src="https://mmbiz.qpic.cn/example/640?wx_fmt=webp&amp;from=appmsg"></a>
+            """,
+            forType: .html
+        )
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        XCTAssertTrue(pasteboard.writeObjects([item]))
+        XCTAssertEqual(pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self])?.count, 1)
+        XCTAssertEqual(
+            FileDropImporter.remoteImageURL(from: pasteboard)?.absoluteString,
+            "https://mmbiz.qpic.cn/example/640?wx_fmt=webp&from=appmsg"
+        )
+    }
+
     func testRawDraggedImageBecomesARealPNGFile() async throws {
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }

@@ -5,7 +5,9 @@ import AppKit
 @MainActor
 enum ShelfDropCoordinator {
     @discardableResult
-    static func accept(_ pasteboard: NSPasteboard, into store: ShelfStore) -> Bool {
+    static func accept(
+        _ pasteboard: NSPasteboard, into store: ShelfStore, action: ShelfAction? = nil
+    ) -> Bool {
         guard !store.isClosed else {
             AppDiagnostics.record("import-rejected-closed", category: "Import", fields: ["shelf": store.diagnosticID])
             return false
@@ -19,7 +21,17 @@ enum ShelfDropCoordinator {
             switch event {
             case .imported(let urls):
                 DragDiagnostics.record("import-delivered", store: store)
-                store.add(urls: urls)
+                if let action {
+                    AppDiagnostics.record("drop-action", category: "Action", fields: ["shelf": shelfID, "action": action.rawValue])
+                    NSApp.activate()
+                    ShelfActionService.perform(action, urls: urls) { [weak store] outputs in
+                        if action == .compressImages || action == .resizeImages {
+                            store?.add(urls: Array(outputs))
+                        }
+                    }
+                } else {
+                    store.add(urls: urls)
+                }
             case .failed(let message):
                 DragDiagnostics.record("import-failed", store: store)
                 store.onDropFailed?(message)

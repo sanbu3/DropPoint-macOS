@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import PDFKit
 import UniformTypeIdentifiers
 
@@ -64,6 +65,8 @@ enum ShelfActionService {
             completion?(Set(fileURLs))
         case .compressImages:
             compressImages(from: fileURLs, completion: completion)
+        case .resizeImages:
+            resizeImages(from: fileURLs, completion: completion)
         case .createPDF:
             createPDF(from: fileURLs)
         case .archive:
@@ -174,6 +177,98 @@ enum ShelfActionService {
             }
             completion?(outcome.succeeded)
         }
+    }
+
+    private static func resizeImages(
+        from urls: [URL],
+        completion: (@MainActor @Sendable (Set<URL>) -> Void)?
+    ) {
+        Task {
+            let images = await Task.detached(priority: .utility) { imageFiles(in: urls) }.value
+            guard !images.isEmpty else {
+                showError("无法调整尺寸", "请拖入至少一张可读取的图片。")
+                return
+            }
+            let alert = NSAlert()
+            alert.messageText = "调整图片尺寸"
+            alert.informativeText = "输入最长边的像素上限，保持原图比例和透明区域。输出为 PNG。"
+            alert.addButton(withTitle: "继续")
+            alert.addButton(withTitle: "取消")
+            let field = NSTextField(string: "1600")
+            field.frame.size.width = 116
+            field.setAccessibilityLabel("最长边像素")
+            alert.accessoryView = field
+            alert.window.initialFirstResponder = field
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            guard let pixels = Int(field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  (1...16_384).contains(pixels) else {
+                showError("像素尺寸无效", "请输入 1 到 16384 之间的整数。")
+                return
+            }
+            let destination: ImageCompressionDestination
+            if images.count == 1, let image = images.first {
+                let panel = NSSavePanel()
+                panel.allowedContentTypes = [.png]
+                panel.canCreateDirectories = true
+                panel.nameFieldStringValue = resizedFileName(for: image)
+                panel.message = "选择调整尺寸后的图片保存位置"
+                guard panel.runModal() == .OK, let url = panel.url else { return }
+                destination = .file(url)
+            } else {
+                guard let directory = chooseDirectory(message: "选择调整尺寸后的图片输出文件夹") else { return }
+                destination = .directory(directory)
+            }
+
+            let outcome = await Task.detached(priority: .utility) {
+                var outputs = Set<URL>()
+                var failures: [String] = []
+                for source in images {
+                    let output: URL
+                    switch destination {
+                    case .file(let url): output = url
+                    case .directory(let directory):
+                        output = uniqueDestination(named: resizedFileName(for: source), in: directory, fileManager: .default)
+                    }
+                    do {
+                        try resizeImage(at: source, to: output, longestEdge: pixels)
+                        outputs.insert(output)
+                    } catch {
+                        failures.append(source.lastPathComponent)
+                    }
+                }
+                return (outputs, failures)
+            }.value
+            completion?(outcome.0)
+            if !outcome.1.isEmpty {
+                showError("部分图片无法调整尺寸", outcome.1.joined(separator: "\n"))
+            }
+        }
+    }
+
+    nonisolated static func resizeImage(at source: URL, to output: URL, longestEdge: Int) throws {
+        guard source.standardizedFileURL.resolvingSymlinksInPath() != output.standardizedFileURL.resolvingSymlinksInPath() else {
+            throw CocoaError(.fileWriteFileExists)
+        }
+        guard (1...16_384).contains(longestEdge),
+              let image = CGImageSourceCreateWithURL(source as CFURL, nil),
+              let resized = CGImageSourceCreateThumbnailAtIndex(image, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: longestEdge,
+              ] as CFDictionary) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let data = NSMutableData()
+        guard let writer = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        CGImageDestinationAddImage(writer, resized, nil)
+        guard CGImageDestinationFinalize(writer) else { throw CocoaError(.fileWriteUnknown) }
+        try (data as Data).write(to: output, options: .atomic)
+    }
+
+    nonisolated private static func resizedFileName(for source: URL) -> String {
+        "\(source.deletingPathExtension().lastPathComponent)-resized.png"
     }
 
     private static func compressImages(

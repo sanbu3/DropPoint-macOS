@@ -5,6 +5,32 @@ import XCTest
 
 @MainActor
 final class NativeShelfRoutingTests: XCTestCase {
+    func testExternalDragActionsSurviveTheTransitionOutOfTheShelf() async throws {
+        let store = ShelfStore()
+        let controller = ShelfWindowController(store: store, alwaysOnTop: true)
+        defer { controller.close() }
+        let screen = try XCTUnwrap(NSScreen.main)
+        controller.show(at: NSPoint(x: screen.visibleFrame.midX, y: screen.visibleFrame.midY), activating: false)
+        store.updateDropTargeted(true)
+        let panel = try XCTUnwrap(controller.dragActionsPanel)
+        let targets = try XCTUnwrap(panel.contentView as? ShelfDragActionsView)
+        XCTAssertEqual(panel.frame.maxY, controller.window?.frame.minY)
+        XCTAssertEqual(targets.action(at: NSPoint(x: 22, y: 22)), .archive)
+        XCTAssertEqual(targets.action(at: NSPoint(x: 76, y: 22)), .compressImages)
+        XCTAssertEqual(targets.action(at: NSPoint(x: 130, y: 22)), .resizeImages)
+        XCTAssertNil(targets.action(at: NSPoint(x: 49, y: 22)))
+
+        store.scheduleDropTargetExit()
+        store.updateDropTargeted(true)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(controller.dragActionsPanel === panel)
+
+        store.scheduleDropTargetExit()
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertNil(controller.dragActionsPanel)
+        XCTAssertFalse(panel.isVisible)
+    }
+
     func testShelfBackgroundNeverFallsBackToSwiftUIHitTestingOnMacOS27() throws {
         guard #available(macOS 27, *) else { throw XCTSkip("macOS 27 route") }
         let controller = ShelfWindowController(store: ShelfStore(), alwaysOnTop: false)

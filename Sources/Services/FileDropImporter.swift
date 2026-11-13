@@ -27,6 +27,13 @@ enum FileDropImporter {
         return queue
     }()
 
+    private static let chromiumImageHTML = NSPasteboard.PasteboardType("org.chromium.image-html")
+    private static let promisedContentType = NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-content-type")
+    private static let imageSourcePattern = try! NSRegularExpression(
+        pattern: #"<img\b[^>]*?\s+src\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))"#,
+        options: .caseInsensitive
+    )
+
     private static let legacyFileNames = NSPasteboard.PasteboardType("NSFilenamesPboardType")
     private static var imageDataTypes: [NSPasteboard.PasteboardType] {
         NSImage.imageTypes.map { NSPasteboard.PasteboardType($0) }
@@ -41,6 +48,7 @@ enum FileDropImporter {
             .URL,
             .string,
             .html,
+            chromiumImageHTML,
         ]
         types.append(contentsOf: imageDataTypes)
         for rawType in NSFilePromiseReceiver.readableDraggedTypes {
@@ -105,34 +113,43 @@ enum FileDropImporter {
             return true
         }
 
+        let remoteImage = isSingleItem ? remoteImageURL(from: pasteboard) : nil
         if let promises = pasteboard.readObjects(
             forClasses: [NSFilePromiseReceiver.self]
         ) as? [NSFilePromiseReceiver], !promises.isEmpty {
             AppDiagnostics.record("import-file-promises", category: "Import", fields: ["import": importID, "count": String(promises.count)])
-            Task {
-                let destination = await Task.detached(priority: .utility) { makeImportDirectory() }.value
-                guard let destination else {
-                    deliver(.failed("无法创建拖入文件的保存目录。"))
-                    return
-                }
-                let delivery = FilePromiseDelivery(
-                    remaining: promises.reduce(0) { $0 + max(1, $1.fileNames.count) },
-                    completion: deliver
-                )
-                for promise in promises {
-                    promise.receivePromisedFiles(
-                        atDestination: destination,
-                        options: [:],
-                        operationQueue: promiseQueue
-                    ) { url, error in
-                        let event: ImportEvent
-                        if let error { event = .failed(error.localizedDescription) }
-                        else if FileManager.default.fileExists(atPath: url.path) { event = .imported([url]) }
-                        else { event = .failed("提供文件的应用没有完成传输。") }
-                        Task { @MainActor in delivery.receive(event) }
-                    }
+            guard let destination = makeImportDirectory() else {
+                Task { @MainActor in deliver(.failed("无法创建拖入文件的保存目录。")) }
+                return true
+            }
+            let delivery = FilePromiseDelivery(receivers: promises) { event in
+                if case .failed = event, let remoteImage {
+                    AppDiagnostics.record("import-promise-fallback", category: "Import", fields: ["import": importID])
+                    importRemoteImage(remoteImage, importID: importID, deliver: deliver)
+                } else {
+                    deliver(event)
                 }
             }
+            // Legacy browser providers can require the live drag pasteboard.
+            for promise in promises {
+                promise.receivePromisedFiles(
+                    atDestination: destination,
+                    options: [:],
+                    operationQueue: promiseQueue
+                ) { url, error in
+                    let event: ImportEvent
+                    if let error { event = .failed(error.localizedDescription) }
+                    else if FileManager.default.fileExists(atPath: url.path) { event = .imported([url]) }
+                    else { event = .failed("提供文件的应用没有完成传输。") }
+                    Task { @MainActor in delivery.receive(event) }
+                }
+            }
+            delivery.start(timeout: remoteImage == nil ? .seconds(60) : .seconds(2))
+            return true
+        }
+
+        if let remoteImage {
+            importRemoteImage(remoteImage, importID: importID, deliver: deliver)
             return true
         }
 
@@ -152,6 +169,82 @@ enum FileDropImporter {
         }
         AppDiagnostics.record("import-unsupported", category: "Import", fields: ["import": importID])
         return false
+    }
+
+    static func remoteImageURL(from pasteboard: NSPasteboard) -> URL? {
+        let pageURL = webURL(from: pasteboard)
+        for type in [chromiumImageHTML, .html] {
+            guard let html = pasteboard.string(forType: type), html.utf16.count <= 256_000,
+                  let match = imageSourcePattern.firstMatch(
+                    in: html, range: NSRange(html.startIndex..., in: html)
+                  ) else { continue }
+            for index in 1..<match.numberOfRanges {
+                guard let range = Range(match.range(at: index), in: html) else { continue }
+                let source = html[range]
+                    .replacingOccurrences(of: "&amp;", with: "&")
+                    .replacingOccurrences(of: "&#38;", with: "&")
+                if let url = URL(string: source, relativeTo: pageURL)?.absoluteURL,
+                   isRemoteURL(url) { return url }
+            }
+        }
+        if let pageURL,
+           let rawType = pasteboard.string(forType: promisedContentType),
+           UTType(rawType)?.conforms(to: .image) == true {
+            return pageURL
+        }
+        return nil
+    }
+
+    private static func isRemoteURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http" else { return false }
+        return url.host != nil && url.user == nil && url.password == nil
+    }
+
+    private static func importRemoteImage(
+        _ url: URL,
+        importID: String,
+        deliver: @MainActor @escaping @Sendable (ImportEvent) -> Void
+    ) {
+        AppDiagnostics.record("import-remote-image", category: "Import", fields: ["import": importID])
+        Task {
+            let result = await Task.detached(priority: .utility) { await downloadImage(url) }.value
+            deliver(result)
+        }
+    }
+
+    nonisolated static func downloadImage(_ url: URL) async -> ImportEvent {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil
+        config.urlCredentialStorage = nil
+        config.timeoutIntervalForRequest = 12
+        config.timeoutIntervalForResource = 25
+        let session = URLSession(configuration: config)
+        defer { session.finishTasksAndInvalidate() }
+        let failure = ImportEvent.failed("无法获取拖入的网页图片。")
+        do {
+            let (temporaryFile, response) = try await session.download(from: url)
+            defer { try? FileManager.default.removeItem(at: temporaryFile) }
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                  let fileSize = try temporaryFile.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                  fileSize <= 50 * 1_024 * 1_024,
+                  let image = CGImageSourceCreateWithURL(temporaryFile as CFURL, nil),
+                  CGImageSourceGetCount(image) > 0,
+                  CGImageSourceGetStatusAtIndex(image, 0) == .statusComplete,
+                  let type = CGImageSourceGetType(image).flatMap({ UTType($0 as String) }),
+                  type.conforms(to: .image),
+                  let ext = type.preferredFilenameExtension,
+                  let directory = makeImportDirectory() else { return failure }
+            let output = directory.appendingPathComponent("Dragged Image").appendingPathExtension(ext)
+            do {
+                try FileManager.default.moveItem(at: temporaryFile, to: output)
+                return .imported([output])
+            } catch {
+                try? FileManager.default.removeItem(at: directory)
+                return failure
+            }
+        } catch {
+            return failure
+        }
     }
 
     private static func importImage(
@@ -283,30 +376,51 @@ enum FileDropImporter {
 
 @MainActor
 private final class FilePromiseDelivery {
-    private var remaining: Int
+    private var receivers: [NSFilePromiseReceiver]
+    private var remaining = 0
+    private var urls: [URL] = []
+    private var failure: String?
     private var isFinished = false
     private let completion: @MainActor @Sendable (FileDropImporter.ImportEvent) -> Void
     private var timeoutTask: Task<Void, Never>?
 
-    init(remaining: Int, completion: @MainActor @escaping @Sendable (FileDropImporter.ImportEvent) -> Void) {
-        self.remaining = remaining
+    init(
+        receivers: [NSFilePromiseReceiver],
+        completion: @MainActor @escaping @Sendable (FileDropImporter.ImportEvent) -> Void
+    ) {
+        self.receivers = receivers
         self.completion = completion
-        timeoutTask = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .seconds(60)) } catch { return }
-            guard let self, !self.isFinished else { return }
-            self.isFinished = true
-            self.completion(.failed("提供文件的应用长时间没有完成传输，请重试拖入。"))
+    }
+
+    func start(timeout: Duration) {
+        // AppKit populates fileNames when receivePromisedFiles is called.
+        remaining = receivers.reduce(0) { $0 + max(1, $1.fileNames.count) }
+        timeoutTask = Task { @MainActor in
+            do { try await Task.sleep(for: timeout) } catch { return }
+            finish()
         }
     }
 
     func receive(_ event: FileDropImporter.ImportEvent) {
         guard !isFinished else { return }
-        completion(event)
+        switch event {
+        case .imported(let delivered): urls.append(contentsOf: delivered)
+        case .failed(let message): failure = message
+        }
         remaining -= 1
-        if remaining <= 0 {
-            isFinished = true
-            timeoutTask?.cancel()
-            timeoutTask = nil
+        if remaining <= 0 { finish() }
+    }
+
+    private func finish() {
+        guard !isFinished else { return }
+        isFinished = true
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        receivers.removeAll()
+        if !urls.isEmpty {
+            completion(.imported(urls))
+        } else {
+            completion(.failed(failure ?? "提供文件的应用长时间没有完成传输，请重试拖入。"))
         }
     }
 }

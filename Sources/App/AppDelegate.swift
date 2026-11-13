@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .map { URL(fileURLWithPath: String($0)) } ?? []
         if ProcessInfo.processInfo.environment["DROPPOINT_DEMO_DROP_GUIDE"] == "1" {
             let demoShelf = manager.spawn()
-            demoShelf.store.isDropTargeted = true
+            demoShelf.store.updateDropTargeted(true)
         } else if !demoURLs.isEmpty {
             let demoShelf = manager.spawn(urls: demoURLs)
             if ProcessInfo.processInfo.environment["DROPPOINT_DEMO_EXPANDED"] == "1",

@@ -113,6 +113,7 @@ struct ShelfQuickActionBar: View {
         case .reveal: "显示"
         case .copyPaths: "复制路径"
         case .compressImages: "压缩"
+        case .resizeImages: "尺寸"
         case .createPDF: "PDF"
         case .archive: "ZIP"
         case .copyTo: "复制到"

@@ -58,6 +58,7 @@
 		C5B43D9F33FB4B646279C085 /* ShelfActionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5878A133EF3ADA9F52C44FBB /* ShelfActionService.swift */; };
 		C7EB8A06AC488AF2EE3C0DB3 /* ReleaseRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B811AF48AF53893BFD5CE42 /* ReleaseRegressionTests.swift */; };
 		CB6C29B72C794C35E91985D5 /* ShelfFocusRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7C759DEB962642660176DF /* ShelfFocusRing.swift */; };
+		CEC5429F6F828BA167DAABAE /* ShelfDragActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E8C880926D54E7D4544BDB /* ShelfDragActionsView.swift */; };
 		CF8480E4E339D6A74C29184A /* Cat_in_Box Timeline.png in Resources */ = {isa = PBXBuildFile; fileRef = 953C9045C611D225D9291597 /* Cat_in_Box Timeline.png */; };
 		CFD053C0FB09C749D5992602 /* NativeTooltipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6EA388EDA98B6B069CCBB80 /* NativeTooltipTests.swift */; };
 		D3E23F0C734B05404C84993D /* Cat_in_Box.svg in Resources */ = {isa = PBXBuildFile; fileRef = 7B49C3435F21B7E7EA4B0730 /* Cat_in_Box.svg */; };
@@ -137,6 +138,7 @@
 		B02D5D7FF65511CE65967001 /* NativeShelfControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeShelfControls.swift; sourceTree = "<group>"; };
 		BAF3641498F04C920169147B /* WindowScreenshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScreenshotService.swift; sourceTree = "<group>"; };
 		BD764C3F09D849C7474D1682 /* PermissionGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGuideView.swift; sourceTree = "<group>"; };
+		C2E8C880926D54E7D4544BDB /* ShelfDragActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfDragActionsView.swift; sourceTree = "<group>"; };
 		C2FEBA3176F83A868761DCFC /* DropPointLogo.svg */ = {isa = PBXFileReference; path = DropPointLogo.svg; sourceTree = "<group>"; };
 		C368EF9A81E41BA63A5F4FDD /* Empty Box.svg */ = {isa = PBXFileReference; path = "Empty Box.svg"; sourceTree = "<group>"; };
 		CA2B098F44579DD07A59E957 /* AppRelaunchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRelaunchService.swift; sourceTree = "<group>"; };
@@ -274,6 +276,7 @@
 				762876CDE044EFE5D832A43C /* ScreenshotFlyInPresenter.swift */,
 				98547C2AB6AC4BC7EBA22C93 /* ShelfArtworkPlayer.swift */,
 				7FE86B244679C85061AE61D2 /* ShelfContextMenu.swift */,
+				C2E8C880926D54E7D4544BDB /* ShelfDragActionsView.swift */,
 				EF5C91044FE6C89542B40249 /* ShelfDragViews.swift */,
 				2404CF97215AEC8D681563B9 /* ShelfDropHostingView.swift */,
 				E2DCF870B5B0FB604971CD7B /* ShelfRenderingView.swift */,
@@ -478,6 +481,7 @@
 				8F247D23E290B09CC34B5E8B /* ShelfArtworkPlayer.swift in Sources */,
 				F6F34770DCE47E7C27643DE9 /* ShelfCollectionModels.swift in Sources */,
 				AEC152BEA65B60BFE7EDE958 /* ShelfContextMenu.swift in Sources */,
+				CEC5429F6F828BA167DAABAE /* ShelfDragActionsView.swift in Sources */,
 				47D1E2EC39F7EEEAC7C22446 /* ShelfDragViews.swift in Sources */,
 				AB2BE48F13E1659B8BDBE7EF /* ShelfDropCoordinator.swift in Sources */,
 				255B52FD63A42E32810A7724 /* ShelfDropHostingView.swift in Sources */,
@@ -654,7 +658,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -662,7 +666,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.7;
+				MARKETING_VERSION = 2.0.8;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
@@ -691,7 +695,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -699,7 +703,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.7;
+				MARKETING_VERSION = 2.0.8;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
