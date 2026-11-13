@@ -311,6 +311,27 @@ final class ClipboardServiceTests: XCTestCase {
 
 @MainActor
 final class FileDropImporterTests: XCTestCase {
+    func testDragActionsUseEveryFileTypeInTheBatch() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let png = directory.appendingPathComponent("a.png")
+        let pdf = directory.appendingPathComponent("b.pdf")
+        try Data().write(to: png)
+        try Data().write(to: pdf)
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+
+        XCTAssertTrue(board.writeObjects([png as NSURL]))
+        XCTAssertTrue(FileDropImporter.containsOnlyImages(board))
+        XCTAssertEqual(ShelfStore.actionsForDrag(imagesOnly: true), [.archive, .compressImages, .resizeImages, .airDrop])
+
+        board.clearContents()
+        XCTAssertTrue(board.writeObjects([png as NSURL, pdf as NSURL]))
+        XCTAssertFalse(FileDropImporter.containsOnlyImages(board))
+        XCTAssertEqual(ShelfStore.actionsForDrag(imagesOnly: false), [.archive, .airDrop])
+    }
+
     func testBrowserImageImportsEvenWhenAdvertisedFilePromiseNeverDelivers() async throws {
         let image = NSImage(size: NSSize(width: 24, height: 24))
         image.lockFocus()
@@ -358,6 +379,7 @@ final class FileDropImporterTests: XCTestCase {
         defer { pasteboard.releaseGlobally() }
         XCTAssertTrue(pasteboard.writeObjects([item]))
         XCTAssertEqual(pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self])?.count, 1)
+        XCTAssertTrue(FileDropImporter.containsOnlyImages(pasteboard))
         XCTAssertEqual(
             FileDropImporter.remoteImageURL(from: pasteboard)?.absoluteString,
             "https://mmbiz.qpic.cn/example/640?wx_fmt=webp&from=appmsg"

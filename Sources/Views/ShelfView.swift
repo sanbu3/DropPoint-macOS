@@ -199,7 +199,7 @@ struct ShelfView: View {
         let progress = min(max(store.dismissGestureProgress, 0), 1)
         let lengthProgress = min(progress * 1.65, 1)
         let emphasisProgress = min(max((progress - 0.22) / 0.78, 0), 1)
-        let active = store.isHovered || store.isDropTargeted || store.isFocused
+        let active = store.isHovered || store.isFocused
         let restingWidth: CGFloat = active ? 54 : 38
         let dot = store.showsDragActions && !holding
         let width: CGFloat = dot ? 7 : (holding ? 126 : restingWidth + (110 - restingWidth) * lengthProgress)
@@ -216,7 +216,7 @@ struct ShelfView: View {
                 } else {
                     Capsule()
                         .fill(store.isDropTargeted ? palette.accent : palette.activeHandle)
-                        .opacity(active ? 1 : 0)
+                        .opacity(active || store.isDropTargeted ? 1 : 0)
                     Capsule()
                         .fill(palette.danger)
                         .opacity(emphasisProgress)
@@ -224,11 +224,10 @@ struct ShelfView: View {
             }
             .frame(width: width, height: height)
             .clipShape(Capsule())
-            .opacity(holding || active ? 1 : max(handleOpacity, 0.64 + 0.36 * progress))
+            .opacity(holding || active || dot ? 1 : max(handleOpacity, 0.64 + 0.36 * progress))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(holding ? "清空进度" : "文件架手柄")
             .accessibilityValue(holding ? "\(Int(store.optionClearProgress * 100))%" : "")
-            .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: dot)
             .animation(reduceMotion ? nil : .smooth(duration: 0.16), value: holding)
             .padding(.bottom, 7)
         }
@@ -237,6 +236,10 @@ struct ShelfView: View {
         .animation(
             reduceMotion || store.isDismissGestureActive ? nil : .smooth(duration: 0.2),
             value: active
+        )
+        .animation(
+            reduceMotion ? nil : .smooth(duration: ShelfDragActionsView.transitionDuration),
+            value: dot
         )
         .animation(
             reduceMotion || store.isDismissGestureActive ? nil : .smooth(duration: 0.18),

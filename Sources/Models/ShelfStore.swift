@@ -12,7 +12,11 @@ final class ShelfStore {
     var isExpanded = false
     var isDropTargeted = false
     var targetedDragAction: ShelfAction?
-    var showsDragActions: Bool { isDropTargeted && showQuickActionBar && !isDraggingOut }
+    private(set) var dragActions: [ShelfAction] = []
+    @ObservationIgnored private var dragSequence: Int?
+    @ObservationIgnored private var dragPasteboardChangeCount: Int?
+    @ObservationIgnored private var dragCanImport = false
+    var showsDragActions: Bool { isDropTargeted && showQuickActionBar && !isDraggingOut && !dragActions.isEmpty }
     var isFocused = false
     var isKeyboardNavigating = false
     var isHovered = false
@@ -100,16 +104,50 @@ final class ShelfStore {
             : "\(items.count) 项"
     }
 
-    func updateDropTargeted(_ targeted: Bool) {
+    func updateExternalDrop(_ sender: NSDraggingInfo) -> Bool {
+        let pasteboard = sender.draggingPasteboard
+        if dragSequence != sender.draggingSequenceNumber || dragPasteboardChangeCount != pasteboard.changeCount {
+            dragSequence = sender.draggingSequenceNumber
+            dragPasteboardChangeCount = pasteboard.changeCount
+            dragCanImport = FileDropImporter.canImport(from: pasteboard)
+            let actions = dragCanImport && !isDraggingOut
+                ? Self.actionsForDrag(imagesOnly: FileDropImporter.containsOnlyImages(pasteboard))
+                : []
+            updateDropTargeted(dragCanImport, actions: actions)
+        } else {
+            updateDropTargeted(dragCanImport)
+        }
+        return dragCanImport
+    }
+
+    static func actionsForDrag(imagesOnly: Bool) -> [ShelfAction] {
+        imagesOnly
+            ? [.archive, .compressImages, .resizeImages, .airDrop]
+            : [.archive, .airDrop]
+    }
+
+    func updateDropTargeted(_ targeted: Bool, actions: [ShelfAction]? = nil) {
         dropTargetExitTask?.cancel()
         dropTargetExitTask = nil
-        if !targeted { targetedDragAction = nil }
-        guard isDropTargeted != targeted else { return }
+        if !targeted {
+            targetedDragAction = nil
+            dragSequence = nil
+            dragPasteboardChangeCount = nil
+        }
+        let targetingChanged = isDropTargeted != targeted
+        let actionsChanged = actions.map { $0 != dragActions } ?? false
+        guard targetingChanged || actionsChanged else { return }
+        if let actions, actionsChanged {
+            dragActions = actions
+            targetedDragAction = nil
+        }
         isDropTargeted = targeted
         onDropTargetChanged?()
-        if !isClosed { onDropTargetActivityChanged?() }
-        guard targeted else { return }
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        guard targetingChanged, !isClosed else { return }
+        onDropTargetActivityChanged?()
+        if targeted {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
     }
 
     func scheduleDropTargetExit() {

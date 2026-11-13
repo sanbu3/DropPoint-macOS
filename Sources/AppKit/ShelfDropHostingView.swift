@@ -163,16 +163,14 @@ final class ShelfDropHostingView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if isReturningDrag(sender) { return .copy }
-        store?.updateDropTargeted(hasFileURLs(sender))
-        return store?.isDropTargeted == true ? .copy : []
+        draggingUpdated(sender)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         if isReturningDrag(sender) { return .copy }
-        let hasFiles = hasFileURLs(sender)
-        store?.updateDropTargeted(hasFiles)
-        return hasFiles ? .copy : []
+        guard let store, store.updateExternalDrop(sender) else { return [] }
+        store.targetedDragAction = nil
+        return .copy
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -226,10 +224,6 @@ final class ShelfDropHostingView: NSView {
             && duration <= 0.45
         resetTouchSequence()
         if recognized { onTwoFingerTap?() }
-    }
-
-    private func hasFileURLs(_ sender: NSDraggingInfo) -> Bool {
-        FileDropImporter.canImport(from: sender.draggingPasteboard)
     }
 
     private func isReturningDrag(_ sender: NSDraggingInfo) -> Bool {

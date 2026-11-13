@@ -68,6 +68,41 @@ enum FileDropImporter {
         return webURL(from: pasteboard) != nil
     }
 
+    /// Inspect the advertised format without requesting promised files or image bytes.
+    static func containsOnlyImages(_ pasteboard: NSPasteboard) -> Bool {
+        if let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL], !urls.isEmpty {
+            return urls.allSatisfy { url in
+                if let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentTypeKey]) {
+                    if values.isDirectory == true { return false }
+                    if let type = values.contentType { return type.conforms(to: .image) }
+                }
+                return UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) == true
+            }
+        }
+
+        guard let items = pasteboard.pasteboardItems, !items.isEmpty else { return false }
+        let imageTypes = Set(imageDataTypes)
+        let allAdvertiseImages = items.allSatisfy { item in
+            if !imageTypes.isDisjoint(with: item.types) { return true }
+            guard let identifier = item.string(forType: promisedContentType) else { return false }
+            return UTType(identifier)?.conforms(to: .image) == true
+        }
+        if allAdvertiseImages { return true }
+
+        if let promises = pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self]) as? [NSFilePromiseReceiver],
+           !promises.isEmpty, promises.count == items.count,
+           promises.allSatisfy({ receiver in
+               !receiver.fileTypes.isEmpty && receiver.fileTypes.allSatisfy {
+                   UTType($0)?.conforms(to: .image) == true
+               }
+           }) { return true }
+
+        return items.count == 1 && remoteImageURL(from: pasteboard) != nil
+    }
+
     /// Returns immediately when the drag was accepted. File promises complete asynchronously.
     @discardableResult
     static func importFiles(

@@ -118,6 +118,10 @@ enum ShelfActionService {
             showError("分享服务不可用", "当前 Mac 没有提供此分享方式。")
             return false
         }
+        if name == .sendViaAirDrop, !service.canPerform(withItems: urls) {
+            showError("隔空投送不可用", "macOS 当前无法通过隔空投送分享这些文件。")
+            return false
+        }
         service.perform(withItems: urls)
         return true
     }

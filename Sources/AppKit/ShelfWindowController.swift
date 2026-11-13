@@ -72,6 +72,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     private var optionHoldTimer: Timer?
     private(set) var optionClearHintPanel: NSPanel?
     private(set) var dragActionsPanel: NSPanel?
+    private var dragActionsDismissTask: Task<Void, Never>?
 
     init(store: ShelfStore, alwaysOnTop: Bool) {
         self.store = store
@@ -519,17 +520,25 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func updateDragActionsPanel() {
-        guard store.showsDragActions, !hasClosed, !isAnimatingOut,
-              let window, window.isVisible, let screen = window.screen else {
-            if let panel = dragActionsPanel {
-                window?.removeChildWindow(panel)
-                panel.orderOut(nil)
-                dragActionsPanel = nil
+        guard !hasClosed, !isAnimatingOut, let window, window.isVisible,
+              let screen = window.screen else {
+            removeDragActionsPanel()
+            return
+        }
+        guard store.showsDragActions else {
+            guard let panel = dragActionsPanel, dragActionsDismissTask == nil else { return }
+            panel.ignoresMouseEvents = true
+            let duration = store.reduceMotion ? 0.12 : ShelfDragActionsView.transitionDuration
+            dragActionsDismissTask = Task { @MainActor [weak self] in
+                do { try await Task.sleep(for: .seconds(duration + 0.04)) } catch { return }
+                self?.removeDragActionsPanel()
             }
             return
         }
 
-        let size = ShelfDragActionsView.panelSize
+        dragActionsDismissTask?.cancel()
+        dragActionsDismissTask = nil
+        let size = ShelfDragActionsView.panelSize(for: store.dragActions)
         let area = screen.visibleFrame
         let y = window.frame.minY - size.height >= area.minY
             ? window.frame.minY - size.height
@@ -539,7 +548,11 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         )
         let frame = NSRect(origin: origin, size: size)
         if let panel = dragActionsPanel {
+            if (panel.contentView as? ShelfDragActionsView)?.actions != store.dragActions {
+                panel.contentView = ShelfDragActionsView(store: store, actions: store.dragActions)
+            }
             if panel.frame != frame { panel.setFrame(frame, display: true) }
+            panel.ignoresMouseEvents = false
             return
         }
 
@@ -554,10 +567,19 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         panel.animationBehavior = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.appearance = window.effectiveAppearance
-        panel.contentView = ShelfDragActionsView(store: store)
+        panel.contentView = ShelfDragActionsView(store: store, actions: store.dragActions)
         dragActionsPanel = panel
         window.addChildWindow(panel, ordered: .above)
         panel.orderFront(nil)
+    }
+
+    private func removeDragActionsPanel() {
+        dragActionsDismissTask?.cancel()
+        dragActionsDismissTask = nil
+        guard let panel = dragActionsPanel else { return }
+        window?.removeChildWindow(panel)
+        panel.orderOut(nil)
+        dragActionsPanel = nil
     }
 
     private func updateOptionClearHint() {

@@ -11,14 +11,18 @@ final class NativeShelfRoutingTests: XCTestCase {
         defer { controller.close() }
         let screen = try XCTUnwrap(NSScreen.main)
         controller.show(at: NSPoint(x: screen.visibleFrame.midX, y: screen.visibleFrame.midY), activating: false)
-        store.updateDropTargeted(true)
+        store.reduceMotion = false
+        store.updateDropTargeted(true, actions: ShelfStore.actionsForDrag(imagesOnly: true))
         let panel = try XCTUnwrap(controller.dragActionsPanel)
         let targets = try XCTUnwrap(panel.contentView as? ShelfDragActionsView)
         XCTAssertEqual(panel.frame.maxY, controller.window?.frame.minY)
-        XCTAssertEqual(targets.action(at: NSPoint(x: 22, y: 22)), .archive)
-        XCTAssertEqual(targets.action(at: NSPoint(x: 76, y: 22)), .compressImages)
-        XCTAssertEqual(targets.action(at: NSPoint(x: 130, y: 22)), .resizeImages)
-        XCTAssertNil(targets.action(at: NSPoint(x: 49, y: 22)))
+        XCTAssertEqual(targets.action(at: NSPoint(x: 26, y: 26)), .archive)
+        XCTAssertEqual(targets.action(at: NSPoint(x: 78, y: 26)), .compressImages)
+        XCTAssertEqual(targets.action(at: NSPoint(x: 130, y: 26)), .resizeImages)
+        XCTAssertEqual(targets.action(at: NSPoint(x: 182, y: 26)), .airDrop)
+        XCTAssertNil(targets.action(at: NSPoint(x: 52, y: 26)))
+        store.targetedDragAction = .archive
+        XCTAssertEqual(targets.action(at: NSPoint(x: 50, y: 26)), .archive)
 
         store.scheduleDropTargetExit()
         store.updateDropTargeted(true)
@@ -27,6 +31,9 @@ final class NativeShelfRoutingTests: XCTestCase {
 
         store.scheduleDropTargetExit()
         try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(controller.dragActionsPanel === panel, "keep the panel through the exit animation")
+        XCTAssertTrue(panel.ignoresMouseEvents)
+        try await Task.sleep(for: .milliseconds(350))
         XCTAssertNil(controller.dragActionsPanel)
         XCTAssertFalse(panel.isVisible)
     }

@@ -207,19 +207,15 @@ final class DragPassThroughNSView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard let dropStore else { return [] }
-        if isReturningDrag(sender, to: dropStore) { return .copy }
-        let acceptsFiles = FileDropImporter.canImport(from: sender.draggingPasteboard)
-        dropStore.updateDropTargeted(acceptsFiles)
-        return acceptsFiles ? .copy : []
+        draggingUpdated(sender)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard let dropStore else { return [] }
         if isReturningDrag(sender, to: dropStore) { return .copy }
-        let acceptsFiles = FileDropImporter.canImport(from: sender.draggingPasteboard)
-        dropStore.updateDropTargeted(acceptsFiles)
-        return acceptsFiles ? .copy : []
+        guard dropStore.updateExternalDrop(sender) else { return [] }
+        dropStore.targetedDragAction = nil
+        return .copy
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
