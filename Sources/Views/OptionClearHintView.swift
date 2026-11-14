@@ -15,14 +15,14 @@ private struct OptionClearContentMotion: ViewModifier {
         let finishing = store.isFinishingOptionClear
         let progress = store.isOptionClearActive ? store.optionClearProgress : 0
         let anticipation = progress * progress
+        let exitAnimation = Animation.easeOut(duration: 0.28)
         content
             .scaleEffect(reduceMotion ? 1 : (finishing ? 0.48 : 1 - 0.065 * anticipation), anchor: .bottom)
             .offset(y: reduceMotion ? 0 : (finishing ? travel : 7 * anticipation))
-            .animation(reduceMotion ? nil : .linear(duration: 0.045), value: progress)
-            .animation(reduceMotion ? nil : .snappy(duration: 0.30, extraBounce: 0.09), value: store.isOptionClearActive)
-            .animation(reduceMotion ? nil : .easeIn(duration: 0.31), value: finishing)
             .opacity(finishing ? 0 : 1)
-            .animation(reduceMotion ? nil : .easeIn(duration: 0.22).delay(0.07), value: finishing)
+            .animation(reduceMotion ? nil : (finishing ? exitAnimation : .linear(duration: 0.045)), value: progress)
+            .animation(reduceMotion ? nil : (finishing ? exitAnimation : .snappy(duration: 0.30, extraBounce: 0.09)), value: store.isOptionClearActive)
+            .animation(reduceMotion ? nil : exitAnimation, value: finishing)
     }
 }
 

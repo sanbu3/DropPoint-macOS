@@ -199,6 +199,9 @@ struct ShelfView: View {
         let finishing = store.isFinishingOptionClear
         let holding = store.isOptionClearActive || finishing
         let holdProgress = finishing ? 1 : store.optionClearProgress
+        let holdTint = colorScheme == .dark
+            ? Color(red: 1, green: 0.68, blue: 0.60)
+            : Color(red: 0.97, green: 0.56, blue: 0.48)
         let progress = min(max(store.dismissGestureProgress, 0), 1)
         let lengthProgress = min(progress * 1.65, 1)
         let emphasisProgress = min(max((progress - 0.22) / 0.78, 0), 1)
@@ -211,12 +214,11 @@ struct ShelfView: View {
         return VStack(spacing: 5) {
             Spacer()
             ZStack(alignment: .leading) {
-                Capsule().fill(palette.handle)
+                Capsule().fill(holding ? holdTint.opacity(0.22) : palette.handle)
                 if holding {
-                    Capsule().fill(palette.danger.opacity(0.13))
                     Rectangle()
                         .fill(LinearGradient(
-                            colors: [palette.danger.opacity(0.58), palette.danger],
+                            colors: [holdTint.opacity(0.68), holdTint],
                             startPoint: .leading, endPoint: .trailing
                         ))
                         .frame(width: width * holdProgress)
@@ -238,7 +240,7 @@ struct ShelfView: View {
             .frame(width: width, height: height)
             .clipShape(Capsule())
             .overlay {
-                Capsule().strokeBorder(palette.danger.opacity(finishing ? 0.65 : 0), lineWidth: 1)
+                Capsule().strokeBorder(holdTint.opacity(finishing ? 0.48 : 0), lineWidth: 1)
             }
             .opacity(holding || active || dot ? 1 : max(handleOpacity, 0.64 + 0.36 * progress))
             .accessibilityElement(children: .ignore)
