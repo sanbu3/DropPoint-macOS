@@ -24,7 +24,9 @@ enum ShelfDropCoordinator {
                 if let action {
                     AppDiagnostics.record("drop-action", category: "Action", fields: ["shelf": shelfID, "action": action.rawValue])
                     NSApp.activate()
-                    ShelfActionService.perform(action, urls: urls) { [weak store] outputs in
+                    ShelfActionService.perform(action, urls: urls, onArchiveStarted: { [weak store] in
+                        store?.playArchiveAnimation()
+                    }) { [weak store] outputs in
                         if action == .compressImages || action == .resizeImages {
                             store?.add(urls: Array(outputs))
                         }

@@ -34,6 +34,7 @@ final class GlobalHotKeyMonitor {
     var onHoveredShelfPreviewShortcut: (() -> Void)?
 
     private var eventHandler: EventHandlerRef?
+    private var mainShortcut: ShelfShortcut?
     private var mainHotKey: EventHotKeyRef?
     private var clipboardHotKey: EventHotKeyRef?
     private var restoreHotKey: EventHotKeyRef?
@@ -45,7 +46,7 @@ final class GlobalHotKeyMonitor {
         registrationErrors.isEmpty ? nil : registrationErrors.joined(separator: "\n")
     }
 
-    func start() {
+    func start(shortcut: ShelfShortcut = .standard) {
         guard eventHandler == nil else { return }
         registrationErrors.removeAll()
         AppDiagnostics.record("hotkeys-start", category: "Input")
@@ -85,18 +86,9 @@ final class GlobalHotKeyMonitor {
         }
 
         let signature = fourCharacterCode("DPNT")
-        let mainID = EventHotKeyID(signature: signature, id: 1)
-        let mainStatus = RegisterEventHotKey(
-            UInt32(kVK_Tab),
-            UInt32(shiftKey),
-            mainID,
-            GetApplicationEventTarget(),
-            0,
-            &mainHotKey
-        )
+        let mainStatus = setMainShortcut(shortcut)
         if mainStatus != noErr {
-            AppDiagnostics.record("hotkey-registration-failed", category: "Input", fields: ["action": "main", "status": String(mainStatus)])
-            registrationErrors.append("Shift+Tab 已被其他应用占用（错误 \(mainStatus)）")
+            registrationErrors.append("\(shortcut.label) 无法注册（错误 \(mainStatus)）")
         }
 
         let clipboardID = EventHotKeyID(signature: signature, id: 2)
@@ -128,6 +120,26 @@ final class GlobalHotKeyMonitor {
         }
     }
 
+    @discardableResult
+    func setMainShortcut(_ shortcut: ShelfShortcut) -> OSStatus {
+        guard eventHandler != nil, !shortcut.conflictsWithApp else { return OSStatus(paramErr) }
+        if let current = mainShortcut, current.keyCode == shortcut.keyCode,
+           current.modifiers == shortcut.modifiers { return noErr }
+        let id = EventHotKeyID(signature: fourCharacterCode("DPNT"), id: 1)
+        var replacement: EventHotKeyRef?
+        let status = RegisterEventHotKey(shortcut.keyCode, shortcut.modifiers, id,
+                                         GetApplicationEventTarget(), 0, &replacement)
+        if status == noErr {
+            if let mainHotKey { UnregisterEventHotKey(mainHotKey) }
+            mainHotKey = replacement
+            mainShortcut = shortcut
+        } else {
+            AppDiagnostics.record("hotkey-registration-failed", category: "Input",
+                                  fields: ["action": "main", "status": String(status)])
+        }
+        return status
+    }
+
     func stop() {
         AppDiagnostics.record("hotkeys-stop", category: "Input")
         if let mainHotKey { UnregisterEventHotKey(mainHotKey) }
@@ -136,6 +148,7 @@ final class GlobalHotKeyMonitor {
         if let hoveredShelfPasteHotKey { UnregisterEventHotKey(hoveredShelfPasteHotKey) }
         if let hoveredShelfPreviewHotKey { UnregisterEventHotKey(hoveredShelfPreviewHotKey) }
         if let eventHandler { RemoveEventHandler(eventHandler) }
+        mainShortcut = nil
         mainHotKey = nil
         clipboardHotKey = nil
         restoreHotKey = nil

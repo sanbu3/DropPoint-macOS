@@ -29,7 +29,7 @@ codesign --force --deep --sign - .build/Release/Build/Products/Release/DropPoint
 codesign --verify --deep --strict .build/Release/Build/Products/Release/DropPoint.app
 ```
 
-安装前备份旧应用到构建目录，退出旧进程，在暂存位置校验新版签名后再替换 `/Applications/DropPoint.app`。安装后比较整个应用内容，并核对实际运行的可执行文件路径，防止启动另一份旧构建。
+安装前备份旧应用到构建目录，退出旧进程，在暂存位置校验新版签名后再替换 `/Applications/DropPoint.app`。在这台 Mac 上安装新版本供授权回归测试时，退出 DropPoint 后执行 `tccutil reset All io.github.sanbu3.droppoint.macos`，再启动新版并通过系统设置重新授权。安装后比较整个应用内容，并核对实际运行的可执行文件路径，防止启动另一份旧构建。
 
 ```bash
 python3 scripts/verify-release.py --app /Applications/DropPoint.app \

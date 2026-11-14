@@ -207,6 +207,8 @@ final class AppSettings {
     var spawnOnLaunch: Bool { didSet { persistPropertyChange() } }
     var alwaysOnTop: Bool { didSet { persistPropertyChange() } }
     var shelfPosition: ShelfPosition { didSet { persistPropertyChange() } }
+    @ObservationIgnored var registerShelfShortcut: ((ShelfShortcut) -> Bool)?
+    var shelfShortcut: ShelfShortcut { didSet { persistPropertyChange() } }
     var shortcutAction: ShortcutAction { didSet { persistPropertyChange() } }
     var shakeActivationEnabled: Bool { didSet { persistPropertyChange() } }
     var shakeSensitivity: ShakeSensitivity { didSet { persistPropertyChange() } }
@@ -247,6 +249,8 @@ final class AppSettings {
         shelfPosition = ShelfPosition(
             rawValue: defaults.string(forKey: Keys.shelfPosition) ?? "cursor"
         ) ?? .cursor
+        shelfShortcut = defaults.data(forKey: Keys.shelfShortcut)
+            .flatMap { try? JSONDecoder().decode(ShelfShortcut.self, from: $0) } ?? .standard
         shortcutAction = ShortcutAction(
             rawValue: defaults.string(forKey: Keys.shortcutAction) ?? "spawn"
         ) ?? .spawn
@@ -404,6 +408,7 @@ final class AppSettings {
         defaults.set(spawnOnLaunch, forKey: Keys.spawnOnLaunch)
         defaults.set(alwaysOnTop, forKey: Keys.alwaysOnTop)
         defaults.set(shelfPosition.rawValue, forKey: Keys.shelfPosition)
+        defaults.set(try? JSONEncoder().encode(shelfShortcut), forKey: Keys.shelfShortcut)
         defaults.set(shortcutAction.rawValue, forKey: Keys.shortcutAction)
         defaults.set(shakeActivationEnabled, forKey: Keys.shakeActivationEnabled)
         defaults.set(shakeSensitivity.rawValue, forKey: Keys.shakeSensitivity)
@@ -438,6 +443,7 @@ final class AppSettings {
         static let spawnOnLaunch = "spawnOnLaunch"
         static let alwaysOnTop = "alwaysOnTop"
         static let shelfPosition = "shelfPosition"
+        static let shelfShortcut = "shelfShortcut"
         static let shortcutAction = "shortcutAction"
         static let shakeActivationEnabled = "shakeActivationEnabled"
         static let shakeSensitivity = "shakeSensitivity"

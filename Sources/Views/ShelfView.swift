@@ -24,6 +24,38 @@ struct ShelfView: View {
             controls
             dragHandle
             windowDragAreas
+            if let id = store.archiveAnimationID {
+                Group {
+                    if reduceMotion {
+                        Image(systemName: "archivebox.fill")
+                            .font(.system(size: 36))
+                            .foregroundStyle(palette.accent)
+                    } else {
+                        AnimatedSVGView(name: "ZIP File Icon", pauseAfterCycle: true)
+                    }
+                }
+                .frame(width: 78, height: 78)
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                .id(id)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+            if let action = store.targetedDragAction {
+                VStack {
+                    Spacer()
+                    Label(action.title.trimmingCharacters(in: CharacterSet(charactersIn: "…")),
+                          systemImage: action.systemImage)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(palette.ink)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.regularMaterial, in: Capsule())
+                        .overlay { Capsule().strokeBorder(palette.accent, lineWidth: 1) }
+                        .padding(.bottom, 24)
+                }
+                .allowsHitTesting(false)
+            }
         }
         .clipShape(.rect(cornerRadius: 25, style: .continuous))
         .contentShape(.rect(cornerRadius: 25, style: .continuous))

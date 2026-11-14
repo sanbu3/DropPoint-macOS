@@ -38,7 +38,10 @@ enum PermissionGuideGeometry {
         let inset: CGFloat = 20
         let width = min(max(280, settings.width - sidebarWidth - inset * 2), visible.width - 16)
         let x = min(max(settings.minX + sidebarWidth + inset, visible.minX + 8), visible.maxX - width - 8)
-        let y = max(visible.minY + 8, min(settings.minY - height - 10, visible.maxY - height - 8))
+        let below = settings.minY - height - 10
+        let above = settings.maxY + 10
+        let preferred = below >= visible.minY + 8 ? below : (above + height <= visible.maxY - 8 ? above : below)
+        let y = max(visible.minY + 8, min(preferred, visible.maxY - height - 8))
         return NSRect(x: x, y: y, width: width, height: height)
     }
 }

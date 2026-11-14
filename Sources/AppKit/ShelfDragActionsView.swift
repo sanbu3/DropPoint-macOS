@@ -57,6 +57,25 @@ final class ShelfDragActionsView: NSView {
         return updateTarget(at: convert(sender.draggingLocation, from: nil))
     }
 
+    override func updateDraggingItemsForDrag(_ sender: NSDraggingInfo?) {
+        guard let sender, store?.showsDragActions == true else { return }
+        // File URLs are safe to enumerate without requesting promised files or image data.
+        sender.enumerateDraggingItems(options: [], for: self, classes: [NSURL.self],
+                                      searchOptions: [.urlReadingFileURLsOnly: true]) { item, _, _ in
+            guard let components = item.imageComponents, !components.isEmpty else { return }
+            for component in components {
+                guard let image = component.contents as? NSImage else { continue }
+                let size = image.size
+                guard size.width > 0, size.height > 0 else { continue }
+                component.contents = NSImage(size: size, flipped: false) { rect in
+                    image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 0.55)
+                    return true
+                }
+            }
+            item.imageComponentsProvider = { components }
+        }
+    }
+
     override func draggingExited(_ sender: NSDraggingInfo?) {
         store?.targetedDragAction = nil
         store?.scheduleDropTargetExit()
@@ -129,11 +148,11 @@ private struct DragActionCircles: View {
                 let offset = ShelfDragActionsView.actionOffset(index, count: actions.count)
                 Image(systemName: action.systemImage)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(targeted ? palette.accent : palette.ink)
+                    .foregroundStyle(targeted ? .white : palette.ink)
                     .frame(width: ShelfDragActionsView.actionDiameter, height: ShelfDragActionsView.actionDiameter)
                     .background {
                         Circle().fill(palette.activeSurface)
-                        Circle().fill(palette.accentSurface).opacity(targeted ? 1 : 0)
+                        Circle().fill(palette.accent).opacity(targeted ? 1 : 0)
                     }
                     .overlay {
                         Circle().strokeBorder(targeted ? palette.accent : palette.edge, lineWidth: targeted ? 1.5 : 1)
@@ -143,7 +162,7 @@ private struct DragActionCircles: View {
                     .animation(.smooth(duration: 0.15), value: targeted)
                     .scaleEffect(expanded || reduceMotion ? 1 : 0.6)
                     .offset(x: expanded || reduceMotion ? offset : 0)
-                    .opacity(expanded ? 1 : 0)
+                    .opacity(expanded ? (store.targetedDragAction == nil || targeted ? 1 : 0.60) : 0)
                     .accessibilityHidden(!expanded)
             }
 

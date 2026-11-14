@@ -90,7 +90,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         manager.onPasteHoverAvailabilityChanged = { [weak self] available in
             self?.hotKeys.setHoveredShelfShortcutsEnabled(available)
         }
-        hotKeys.start()
+        hotKeys.start(shortcut: settings.shelfShortcut)
+        settings.registerShelfShortcut = { [weak self] shortcut in
+            self?.hotKeys.setMainShortcut(shortcut) == 0
+        }
         if let errorMessage = hotKeys.registrationErrorMessage,
            ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
             DispatchQueue.main.async { [weak self] in

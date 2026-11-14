@@ -38,6 +38,7 @@
 		7ACAAF8E38F6BE1AF3BA6D57 /* ShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5592D69D2AF2F44E09E094FB /* ShelfView.swift */; };
 		837F24869F4681823D9F2767 /* NativeShelfRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF229171889DE7C7B4B301E9 /* NativeShelfRoutingTests.swift */; };
 		842B6FE264E2839B6C18DF4D /* ShelfPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DFF537C897D5495B17AE0E /* ShelfPalette.swift */; };
+		868E4DB9BDA64B2B7EC3D004 /* ZIP File Icon Timeline.png in Resources */ = {isa = PBXBuildFile; fileRef = 191BAF57285192FCB63ECC3C /* ZIP File Icon Timeline.png */; };
 		8A2ECEE1B29A77148A0B2570 /* ShelfItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60444CC808E3CC2338FE8C1 /* ShelfItem.swift */; };
 		8D33A0855465213F480B8A1D /* NativeHoverRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD731C88FCBBE52F4E3345F /* NativeHoverRegion.swift */; };
 		8F247D23E290B09CC34B5E8B /* ShelfArtworkPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98547C2AB6AC4BC7EBA22C93 /* ShelfArtworkPlayer.swift */; };
@@ -45,6 +46,7 @@
 		9257E0A31EAA7E8929CA2C36 /* FileDropImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 681CA1D8258C085BF9A01AFF /* FileDropImporter.swift */; };
 		9690487E5A258458175C7CB0 /* PermissionGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD764C3F09D849C7474D1682 /* PermissionGuideView.swift */; };
 		99D677AB18F5FCE1257579BC /* HoverTeardownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71DCD26D7CAF6D6713946D4B /* HoverTeardownTests.swift */; };
+		9A0928BBB86EE5A515ADA401 /* ShelfShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F949B02E4E1D63A2948104A /* ShelfShortcut.swift */; };
 		9DD138E14CE1BA6072B77B20 /* ShelfAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C7ECB26F075D2FE5D60A67 /* ShelfAction.swift */; };
 		AB2BE48F13E1659B8BDBE7EF /* ShelfDropCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A069A64661548FFA890B29 /* ShelfDropCoordinator.swift */; };
 		AEC152BEA65B60BFE7EDE958 /* ShelfContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE86B244679C85061AE61D2 /* ShelfContextMenu.swift */; };
@@ -77,6 +79,7 @@
 		F6EF583E71B19DB510C1DBA2 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA0A93955E08FCAD91FCDFB /* AppSettings.swift */; };
 		F6F34770DCE47E7C27643DE9 /* ShelfCollectionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2697859F919AA1AA65C2D36E /* ShelfCollectionModels.swift */; };
 		FAB4A4D72640B024F68077DF /* ScreenRecordingPermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08B8C5F4D23AB0FD0CDC86D /* ScreenRecordingPermissionService.swift */; };
+		FAC818DD5AB79849550E8487 /* ShelfShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 975AA21B8A67DA225A7B784F /* ShelfShortcutTests.swift */; };
 		FD25F17DD58E040ED6CA8722 /* ShelfWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD2A448DA69D1A72B4DF1FA /* ShelfWindowManager.swift */; };
 		FF53ADB63F6D2E9814B336A3 /* ShelfTint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3142AE10D444641B7D35FDDA /* ShelfTint.swift */; };
 /* End PBXBuildFile section */
@@ -98,6 +101,7 @@
 		11676C7F1E7580EADC890261 /* CompactFileShelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactFileShelfView.swift; sourceTree = "<group>"; };
 		122F28B2A6E5D51FEBC7D29D /* PermissionAppDragView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionAppDragView.swift; sourceTree = "<group>"; };
 		12DFF537C897D5495B17AE0E /* ShelfPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfPalette.swift; sourceTree = "<group>"; };
+		191BAF57285192FCB63ECC3C /* ZIP File Icon Timeline.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "ZIP File Icon Timeline.png"; sourceTree = "<group>"; };
 		19549E5672298F1AF28F0E66 /* ImageCompressionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCompressionService.swift; sourceTree = "<group>"; };
 		1B2FDBF971977B77DE36AD97 /* DropPointNativeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DropPointNativeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1EEC6FD5A62755C0940C6677 /* ShelfGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfGeometryTests.swift; sourceTree = "<group>"; };
@@ -107,6 +111,7 @@
 		2697859F919AA1AA65C2D36E /* ShelfCollectionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfCollectionModels.swift; sourceTree = "<group>"; };
 		29115A3051D5B2B4E5905DF1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2DC8A0C719893348161D6789 /* DirectoryWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryWatcher.swift; sourceTree = "<group>"; };
+		2F949B02E4E1D63A2948104A /* ShelfShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfShortcut.swift; sourceTree = "<group>"; };
 		3142AE10D444641B7D35FDDA /* ShelfTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfTint.swift; sourceTree = "<group>"; };
 		35F0CFE68F23B9F6D277B5AA /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
 		40A069A64661548FFA890B29 /* ShelfDropCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfDropCoordinator.swift; sourceTree = "<group>"; };
@@ -129,6 +134,7 @@
 		8F0C0338FC41775B78A51506 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		92BA9E0F18A579244979FDBE /* WindowScreenshotSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScreenshotSmokeTests.swift; sourceTree = "<group>"; };
 		953C9045C611D225D9291597 /* Cat_in_Box Timeline.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Cat_in_Box Timeline.png"; sourceTree = "<group>"; };
+		975AA21B8A67DA225A7B784F /* ShelfShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfShortcutTests.swift; sourceTree = "<group>"; };
 		98547C2AB6AC4BC7EBA22C93 /* ShelfArtworkPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfArtworkPlayer.swift; sourceTree = "<group>"; };
 		9A848E33FD3ABC8DCFD812A4 /* SystemPermissionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemPermissionState.swift; sourceTree = "<group>"; };
 		9AAF80CD078413828F62D5D0 /* ProjectAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAttribution.swift; sourceTree = "<group>"; };
@@ -220,6 +226,7 @@
 				261650BAA90BE7B599BDC1B6 /* PermissionGuideTests.swift */,
 				0B811AF48AF53893BFD5CE42 /* ReleaseRegressionTests.swift */,
 				1EEC6FD5A62755C0940C6677 /* ShelfGeometryTests.swift */,
+				975AA21B8A67DA225A7B784F /* ShelfShortcutTests.swift */,
 				92BA9E0F18A579244979FDBE /* WindowScreenshotSmokeTests.swift */,
 			);
 			path = Tests;
@@ -235,6 +242,7 @@
 				C2FEBA3176F83A868761DCFC /* DropPointLogo.svg */,
 				A6B0A56BCF34E9878EEBB5C8 /* Empty Box Timeline.png */,
 				C368EF9A81E41BA63A5F4FDD /* Empty Box.svg */,
+				191BAF57285192FCB63ECC3C /* ZIP File Icon Timeline.png */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -313,6 +321,7 @@
 				D7C7ECB26F075D2FE5D60A67 /* ShelfAction.swift */,
 				2697859F919AA1AA65C2D36E /* ShelfCollectionModels.swift */,
 				D60444CC808E3CC2338FE8C1 /* ShelfItem.swift */,
+				2F949B02E4E1D63A2948104A /* ShelfShortcut.swift */,
 				22BF155EBBB86457BB19A8D4 /* ShelfStore.swift */,
 				3142AE10D444641B7D35FDDA /* ShelfTint.swift */,
 				9A848E33FD3ABC8DCFD812A4 /* SystemPermissionState.swift */,
@@ -417,6 +426,7 @@
 				06DA6A4EF0CADFBDE8BFAA32 /* DropPointLogo.svg in Resources */,
 				E92E846334EE4281F73AFB37 /* Empty Box Timeline.png in Resources */,
 				4CF8D702D9DF36C68B399EF4 /* Empty Box.svg in Resources */,
+				868E4DB9BDA64B2B7EC3D004 /* ZIP File Icon Timeline.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -436,6 +446,7 @@
 				20F02B96F51F13B9E4EF6CA5 /* PermissionGuideTests.swift in Sources */,
 				C7EB8A06AC488AF2EE3C0DB3 /* ReleaseRegressionTests.swift in Sources */,
 				BDC1C452D7ABF32F69874617 /* ShelfGeometryTests.swift in Sources */,
+				FAC818DD5AB79849550E8487 /* ShelfShortcutTests.swift in Sources */,
 				13AAC37CE43B0CEF8634F5D2 /* WindowScreenshotSmokeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -491,6 +502,7 @@
 				842B6FE264E2839B6C18DF4D /* ShelfPalette.swift in Sources */,
 				AF796645D32D81A021F3F962 /* ShelfQuickActionBar.swift in Sources */,
 				1C070F2CB181538C5FA17D63 /* ShelfRenderingView.swift in Sources */,
+				9A0928BBB86EE5A515ADA401 /* ShelfShortcut.swift in Sources */,
 				EBE6EE47EEBB807615680F34 /* ShelfStore.swift in Sources */,
 				FF53ADB63F6D2E9814B336A3 /* ShelfTint.swift in Sources */,
 				7ACAAF8E38F6BE1AF3BA6D57 /* ShelfView.swift in Sources */,
@@ -658,7 +670,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 29;
+				CURRENT_PROJECT_VERSION = 30;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -666,7 +678,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.18;
+				MARKETING_VERSION = 2.0.19;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
@@ -695,7 +707,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 29;
+				CURRENT_PROJECT_VERSION = 30;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -703,7 +715,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.18;
+				MARKETING_VERSION = 2.0.19;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;

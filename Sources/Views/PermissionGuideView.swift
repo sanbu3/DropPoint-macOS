@@ -6,7 +6,11 @@ struct PermissionGuideView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            PermissionAppIcon(presentation: presentation).frame(width: 52, height: 52)
+            PermissionAppIcon(presentation: presentation)
+                .frame(width: 52, height: 52)
+                .padding(5)
+                .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.tint.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3])) }
                 .overlay(alignment: .bottomTrailing) {
                     if presentation.hasConfirmedGrant {
                         Image(systemName: "checkmark.circle.fill")
@@ -40,7 +44,7 @@ struct PermissionGuideView: View {
     }
     private var title: String {
         switch presentation.phase {
-        case .idle: "将 DropPoint 拖入上方列表"
+        case .idle: "拖动 DropPoint 图标到输入监控列表"
         case .dragging: "松开图标以添加 DropPoint"
         case .waiting: "请打开 DropPoint 的开关"
         case .retry: "还未检测到权限"
@@ -49,10 +53,10 @@ struct PermissionGuideView: View {
     }
     private var detail: String {
         switch presentation.phase {
-        case .idle: "已有 DropPoint 时直接开启；也可点“+”添加。"
+        case .idle: "添加后开启 DropPoint 开关。列表里已有 DropPoint 时，可直接开启。"
         case .dragging: "添加后打开开关，系统可能要求密码或 Touch ID。"
         case .waiting: "正在检测，完成后自动关闭引导和设置。"
-        case .retry: "确认开关已开启，或重新拖入图标；正在继续检测。"
+        case .retry: "打开 DropPoint 开关，或将图标重新拖入列表。引导会继续检测。"
         case .complete(let restart): restart ? "权限已记录，重新启动 DropPoint 后生效。" : "现在可以使用晃动与修饰键唤出。"
         }
     }

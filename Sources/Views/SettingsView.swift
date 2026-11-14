@@ -56,6 +56,8 @@ struct SettingsView: View {
     @State private var launchAtLogin = LaunchAtLoginService.isEnabled
     @State private var loginItemError: String?
     @State private var keyMonitor: Any?
+    @State private var recordingShelfShortcut = false
+    @State private var shortcutError: String?
 
     init(
         settings: AppSettings,
@@ -357,7 +359,18 @@ struct SettingsView: View {
                         optionPicker($draft.shelfPosition)
                     }
                     Divider().padding(.leading, 54)
-                    settingRow(icon: "keyboard.badge.ellipsis", title: "全局快捷键", detail: "Shift+Tab 创建或显示；⌥⇧A 从剪贴板创建。") {
+                    settingRow(icon: "keyboard.badge.ellipsis",
+                               title: draft.shortcutAction == .spawn ? "新建文件架快捷键" : "显示或隐藏文件架快捷键",
+                               detail: shortcutError ?? "点按后录入按键组合。按 Esc 取消。") {
+                        Button(recordingShelfShortcut ? "请按快捷键…" : settings.shelfShortcut.label) {
+                            shortcutError = nil
+                            recordingShelfShortcut.toggle()
+                        }
+                        Button("恢复默认") { saveShelfShortcut(.standard) }
+                            .disabled(settings.shelfShortcut == .standard && !recordingShelfShortcut)
+                    }
+                    Divider().padding(.leading, 54)
+                    settingRow(icon: "keyboard", title: "快捷键操作", detail: "⌥⇧A 从剪贴板新建文件架。") {
                         optionPicker($draft.shortcutAction)
                     }
                 }
@@ -921,9 +934,29 @@ struct SettingsView: View {
         draft.customActions.append(action)
     }
 
+    private func saveShelfShortcut(_ shortcut: ShelfShortcut) {
+        recordingShelfShortcut = false
+        if shortcut.conflictsWithApp || settings.registerShelfShortcut?(shortcut) == false {
+            shortcutError = "这个快捷键已被占用，请试试其他组合。"
+            return
+        }
+        shortcutError = nil
+        settings.shelfShortcut = shortcut
+    }
+
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if recordingShelfShortcut, event.window?.title == "DropPoint 设置" {
+                if event.keyCode == 53 {
+                    recordingShelfShortcut = false
+                } else if let shortcut = ShelfShortcut(event: event) {
+                    saveShelfShortcut(shortcut)
+                } else {
+                    shortcutError = "请同时按住修饰键和另一个按键。"
+                }
+                return nil
+            }
             let chars = event.charactersIgnoringModifiers?.lowercased() ?? ""
             if chars == "w",
                event.modifierFlags.contains(.command),

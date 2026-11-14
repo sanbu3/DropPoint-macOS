@@ -101,7 +101,7 @@ DropPoint 2.0 没有工作台，也没有额外的文件管理主窗口。应用
 
 ## 安装
 
-要安装当前版本 **2.0.18**，请检出 [v2.0.18](https://github.com/sanbu3/DropPoint-macOS/tree/v2.0.18)，按[从源码构建](#从源码构建)生成应用。
+要安装当前版本 **2.0.19**，请检出 [v2.0.19](https://github.com/sanbu3/DropPoint-macOS/tree/v2.0.19)，按[从源码构建](#从源码构建)生成应用。
 
 1. 如需历史版本，前往 [Releases](https://github.com/sanbu3/DropPoint-macOS/releases) 下载对应的 DMG。
 2. 打开 DMG，把 `DropPoint.app` 拖入“应用程序”文件夹。
@@ -220,7 +220,7 @@ xcodebuild \
 
 ## 版本与验证
 
-当前源码版本为 **2.0.18 / build 29**。更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
+当前源码版本为 **2.0.19 / build 30**。更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
 
 2.0.6 在 macOS 27.3 实机验证了从 Codex 输入框拖入图片、创建和关闭文件架。2.0.12 共运行 123 项自动化测试，122 项通过，1 项因屏幕录制未授权跳过。arm64 和 x86_64 的 Universal Release 构建通过。
 

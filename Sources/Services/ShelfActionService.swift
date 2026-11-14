@@ -38,6 +38,7 @@ enum ShelfActionService {
     static func perform(
         _ action: ShelfAction,
         urls: [URL],
+        onArchiveStarted: (() -> Void)? = nil,
         completion: (@MainActor @Sendable (Set<URL>) -> Void)? = nil
     ) {
         let fileURLs = urls.map(\.standardizedFileURL)
@@ -70,7 +71,7 @@ enum ShelfActionService {
         case .createPDF:
             createPDF(from: fileURLs)
         case .archive:
-            createArchive(from: fileURLs)
+            createArchive(from: fileURLs, onStarted: onArchiveStarted)
         case .copyTo:
             chooseAndTransfer(fileURLs, moving: false, completion: completion)
         case .moveTo:
@@ -597,7 +598,7 @@ enum ShelfActionService {
         "\(source.deletingPathExtension().lastPathComponent)-compressed.jpg"
     }
 
-    private static func createArchive(from urls: [URL]) {
+    private static func createArchive(from urls: [URL], onStarted: (() -> Void)?) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.zip]
         panel.nameFieldStringValue = urls.count == 1
@@ -605,6 +606,7 @@ enum ShelfActionService {
             : "DropPoint 文件.zip"
         panel.message = "选择 ZIP 归档保存位置"
         guard panel.runModal() == .OK, let destination = panel.url else { return }
+        onStarted?()
 
         Task {
             let errorMessage = await Task.detached(priority: .utility) { () -> String? in

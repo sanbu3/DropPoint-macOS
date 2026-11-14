@@ -126,7 +126,7 @@ final class PermissionGuideWindowController: NSWindowController, NSWindowDelegat
         guard let visible = screen?.visibleFrame else { return }
         let frame = PermissionGuideGeometry.frame(settings: settingsFrame, visible: visible)
         if window.frame != frame { window.setFrame(frame, display: true) }
-        window.orderFrontRegardless()
+        if !window.isVisible { window.orderFrontRegardless() }
     }
     private func systemSettingsFrame() -> NSRect? {
         guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").first,

@@ -217,7 +217,7 @@ private final class ShelfContextMenuHandler: NSObject {
     @objc func performAction(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let action = ShelfAction(rawValue: rawValue) else { return }
-        if action == .groupInFolder {
+        if action == .groupInFolder || action == .archive {
             // Let AppKit finish tracking the context menu before another menu opens.
             DispatchQueue.main.async { [store] in store.perform(action) }
         } else {

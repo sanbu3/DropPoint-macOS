@@ -47,9 +47,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         let newShelf = item(
             "新建文件架",
-            action: #selector(newShelf),
-            keyEquivalent: settings.shortcutAction == .spawn ? "\t" : "",
-            modifiers: settings.shortcutAction == .spawn ? [.shift] : []
+            action: #selector(newShelf)
         )
         menu.addItem(newShelf)
         let captureTitle = settings.doubleCommandScreenshotEnabled ? "截取最近窗口（左右 ⌘）" : "截取最近窗口"
