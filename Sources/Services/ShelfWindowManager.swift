@@ -143,6 +143,10 @@ final class ShelfWindowManager {
     private var shakeGeneratedIDs = Set<ObjectIdentifier>()
     private var pasteTargetState = ShelfHoverPasteTargetState()
     private var isCapturingScreenshot = false
+    private lazy var screenshotSound = NSSound(
+        contentsOf: URL(fileURLWithPath: "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Shutter.aif"),
+        byReference: true
+    ) ?? NSSound(named: "Tink")
 
     init(
         settings: AppSettings,
@@ -575,7 +579,7 @@ final class ShelfWindowManager {
                         to: NSPoint(x: frame.midX, y: frame.midY)
                     )
                 }
-                NSSound(named: "Tink")?.play()
+                self.screenshotSound?.play()
                 NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
                 self.scheduleIdleSnap(target)
             } catch {
