@@ -214,7 +214,7 @@ final class DragPassThroughNSView: NSView {
         guard let dropStore else { return [] }
         if isReturningDrag(sender, to: dropStore) { return .copy }
         guard dropStore.updateExternalDrop(sender) else { return [] }
-        dropStore.targetedDragAction = nil
+        dropStore.collapseDragActions()
         return .copy
     }
 

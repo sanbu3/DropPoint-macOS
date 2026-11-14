@@ -10,13 +10,15 @@ final class ShelfStore {
     var items: [ShelfItem] = []
     var selectedIDs: Set<String> = []
     var isExpanded = false
-    var isDropTargeted = false
+    private(set) var isDropTargeted = false
     var targetedDragAction: ShelfAction?
     private(set) var dragActions: [ShelfAction] = []
+    private(set) var dragActionsExpanded = false
+    private var keepsDragTriggerVisible = false
     @ObservationIgnored private var dragSequence: Int?
     @ObservationIgnored private var dragPasteboardChangeCount: Int?
     @ObservationIgnored private var dragCanImport = false
-    var showsDragActions: Bool { isDropTargeted && showQuickActionBar && !isDraggingOut && !dragActions.isEmpty }
+    var showsDragActions: Bool { keepsDragTriggerVisible && showQuickActionBar && !isDraggingOut && !dragActions.isEmpty }
     var isFocused = false
     var isKeyboardNavigating = false
     var isHovered = false
@@ -107,6 +109,7 @@ final class ShelfStore {
     func updateExternalDrop(_ sender: NSDraggingInfo) -> Bool {
         let pasteboard = sender.draggingPasteboard
         if dragSequence != sender.draggingSequenceNumber || dragPasteboardChangeCount != pasteboard.changeCount {
+            if dragSequence != sender.draggingSequenceNumber { collapseDragActions() }
             dragSequence = sender.draggingSequenceNumber
             dragPasteboardChangeCount = pasteboard.changeCount
             dragCanImport = FileDropImporter.canImport(from: pasteboard)
@@ -130,32 +133,53 @@ final class ShelfStore {
         dropTargetExitTask?.cancel()
         dropTargetExitTask = nil
         if !targeted {
-            targetedDragAction = nil
+            collapseDragActions()
             dragSequence = nil
             dragPasteboardChangeCount = nil
         }
         let targetingChanged = isDropTargeted != targeted
         let actionsChanged = actions.map { $0 != dragActions } ?? false
-        guard targetingChanged || actionsChanged else { return }
         if let actions, actionsChanged {
             dragActions = actions
-            targetedDragAction = nil
+            collapseDragActions()
         }
+        let keepsTrigger = targeted && showQuickActionBar && !isDraggingOut && !dragActions.isEmpty
+        let triggerChanged = keepsDragTriggerVisible != keepsTrigger
+        guard targetingChanged || actionsChanged || triggerChanged else { return }
+        keepsDragTriggerVisible = keepsTrigger
         isDropTargeted = targeted
         onDropTargetChanged?()
-        guard targetingChanged, !isClosed else { return }
+        guard targetingChanged || triggerChanged, !isClosed else { return }
         onDropTargetActivityChanged?()
-        if targeted {
+        if targeted && targetingChanged {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         }
     }
 
-    func scheduleDropTargetExit() {
+    func expandDragActions() {
+        guard showsDragActions else { return }
+        dragActionsExpanded = true
+    }
+
+    func collapseDragActions() {
+        dragActionsExpanded = false
+        targetedDragAction = nil
+    }
+
+    func scheduleDropTargetExit(isMouseDown: @escaping @MainActor () -> Bool = { NSEvent.pressedMouseButtons != 0 }) {
         guard isDropTargeted else { return }
         dropTargetExitTask?.cancel()
         dropTargetExitTask = Task { @MainActor [weak self] in
-            // A separate native destination receives its enter event after the shelf exits.
+            // The separate native panel may receive its enter event shortly after the shelf exits.
             do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+            if self?.showsDragActions == true, isMouseDown() {
+                self?.collapseDragActions()
+                self?.isDropTargeted = false
+                // A drop outside our windows can end without a final callback to the panel.
+                while self?.showsDragActions == true, isMouseDown() {
+                    do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+                }
+            }
             self?.updateDropTargeted(false)
         }
     }

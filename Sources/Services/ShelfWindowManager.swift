@@ -248,6 +248,7 @@ final class ShelfWindowManager {
     private func canAutoCloseEmptyShelf(_ controller: ShelfWindowController) -> Bool {
         settings.emptyAutoCloseDelay != nil
             && !controller.store.isDropTargeted
+            && !controller.store.showsDragActions
             && controller.store.items.isEmpty
             && !controller.store.keepsEmptyShelfAfterOptionClear
     }
@@ -281,7 +282,7 @@ final class ShelfWindowManager {
             guard let self, let controller,
                   self.shelves.contains(where: { $0 === controller }) else { return }
             self.idleSnapTimers.removeValue(forKey: ObjectIdentifier(controller))
-            guard !controller.store.isDraggingOut, !controller.store.isDropTargeted,
+            guard !controller.store.isDraggingOut, !controller.store.isDropTargeted, !controller.store.showsDragActions,
                   !controller.store.isOptionClearActive, !controller.store.isDismissGestureActive else {
                 self.scheduleIdleSnap(controller)
                 return
@@ -776,7 +777,7 @@ final class ShelfWindowManager {
         }
         store.onDropTargetActivityChanged = { [weak self, weak controller] in
             guard let self, let controller else { return }
-            if controller.store.isDropTargeted {
+            if controller.store.isDropTargeted || controller.store.showsDragActions {
                 self.cancelEmptyAutoClose(controller)
                 self.cancelIdleSnap(controller)
             } else {

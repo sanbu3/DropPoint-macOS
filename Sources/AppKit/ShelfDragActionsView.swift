@@ -11,8 +11,9 @@ final class ShelfDragActionsView: NSView {
     static let transitionDuration = 0.28
 
     static func panelSize(for actions: [ShelfAction]) -> NSSize {
-        NSSize(
-            width: diameter * CGFloat(actions.count) + spacing * CGFloat(max(0, actions.count - 1)) + 2 * margin,
+        let slots = 2 * ((actions.count + 1) / 2) + 1
+        return NSSize(
+            width: diameter * CGFloat(slots) + spacing * CGFloat(slots - 1) + 2 * margin,
             height: diameter + 2 * margin
         )
     }
@@ -33,9 +34,6 @@ final class ShelfDragActionsView: NSView {
         renderingView.layer?.backgroundColor = NSColor.clear.cgColor
         addSubview(renderingView)
         registerForDraggedTypes(FileDropImporter.readableTypes)
-        for (index, action) in actions.enumerated() {
-            addToolTip(Self.targetRect(index), owner: action.title as NSString, userData: nil)
-        }
     }
 
     @available(*, unavailable)
@@ -43,7 +41,8 @@ final class ShelfDragActionsView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard store?.showsDragActions == true else { return nil }
-        return bounds.contains(convert(point, from: superview)) ? self : nil
+        let location = convert(point, from: superview)
+        return isOverTrigger(location) || action(at: location) != nil ? self : nil
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -53,9 +52,7 @@ final class ShelfDragActionsView: NSView {
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard let store, store.showsDragActions, !store.isClosed,
               store.updateExternalDrop(sender), actions == store.dragActions else { return [] }
-        let action = action(at: convert(sender.draggingLocation, from: nil))
-        store.targetedDragAction = action
-        return action == nil ? [] : .copy
+        return updateTarget(at: convert(sender.draggingLocation, from: nil))
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -69,21 +66,44 @@ final class ShelfDragActionsView: NSView {
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard let store, store.showsDragActions, store.updateExternalDrop(sender),
-              actions == store.dragActions,
-              let action = action(at: convert(sender.draggingLocation, from: nil)) else { return false }
+              actions == store.dragActions else { return false }
+        let location = convert(sender.draggingLocation, from: nil)
+        if isOverTrigger(location) {
+            return ShelfDropCoordinator.accept(sender.draggingPasteboard, into: store)
+        }
+        guard let action = action(at: location) else { return false }
         return ShelfDropCoordinator.accept(sender.draggingPasteboard, into: store, action: action)
     }
 
-    private static func targetRect(_ index: Int) -> NSRect {
-        NSRect(x: margin + CGFloat(index) * (diameter + spacing), y: margin, width: diameter, height: diameter)
+    static func actionOffset(_ index: Int, count: Int) -> CGFloat {
+        let leftCount = (count + 1) / 2
+        let slot = index < leftCount ? index - leftCount : index - leftCount + 1
+        return CGFloat(slot) * (diameter + spacing)
+    }
+
+    func updateTarget(at point: NSPoint) -> NSDragOperation {
+        guard let store, store.showsDragActions else { return [] }
+        if isOverTrigger(point) {
+            store.expandDragActions()
+            store.targetedDragAction = nil
+            return .copy
+        }
+        let action = action(at: point)
+        store.targetedDragAction = action
+        return action == nil ? [] : .copy
+    }
+
+    private func isOverTrigger(_ point: NSPoint) -> Bool {
+        hypot(point.x - bounds.midX, point.y - bounds.midY) <= Self.diameter / 2
     }
 
     func action(at point: NSPoint) -> ShelfAction? {
+        guard store?.showsDragActions == true, store?.dragActionsExpanded == true else { return nil }
         for (index, action) in actions.enumerated() {
-            let rect = Self.targetRect(index)
+            let centerX = bounds.midX + Self.actionOffset(index, count: actions.count)
             let isTargeted = store?.targetedDragAction == action && store?.reduceMotion == false
             let radius = Self.diameter / 2 * (isTargeted ? Self.hoverScale : 1)
-            if hypot(point.x - rect.midX, point.y - rect.midY) <= radius { return action }
+            if hypot(point.x - centerX, point.y - bounds.midY) <= radius { return action }
         }
         return nil
     }
@@ -99,10 +119,12 @@ private struct DragActionCircles: View {
     var body: some View {
         let palette = ShelfPalette(dark: colorScheme == .dark, tint: store.tint)
         let visible = ready && store.showsDragActions
-        HStack(spacing: ShelfDragActionsView.spacing) {
+        let expanded = visible && store.dragActionsExpanded
+        let size = ShelfDragActionsView.panelSize(for: actions)
+        ZStack {
             ForEach(Array(actions.enumerated()), id: \.element) { index, action in
                 let targeted = store.targetedDragAction == action
-                let fromCenter = CGFloat(index) - CGFloat(actions.count - 1) / 2
+                let offset = ShelfDragActionsView.actionOffset(index, count: actions.count)
                 Image(systemName: action.systemImage)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(targeted ? palette.accent : palette.ink)
@@ -117,15 +139,32 @@ private struct DragActionCircles: View {
                     .accessibilityLabel(action.title)
                     .scaleEffect(targeted && !reduceMotion ? ShelfDragActionsView.hoverScale : 1)
                     .animation(.smooth(duration: 0.15), value: targeted)
-                    .scaleEffect(visible || reduceMotion ? 1 : 0.72)
-                    .offset(x: visible || reduceMotion ? 0 : -fromCenter * 16)
-                    .opacity(visible ? 1 : 0)
+                    .scaleEffect(expanded || reduceMotion ? 1 : 0.6)
+                    .offset(x: expanded || reduceMotion ? offset : 0)
+                    .opacity(expanded ? 1 : 0)
+                    .accessibilityHidden(!expanded)
             }
+
+            Image(systemName: "ellipsis")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(palette.accent)
+                .frame(width: ShelfDragActionsView.diameter, height: ShelfDragActionsView.diameter)
+                .background {
+                    Circle().fill(palette.activeSurface)
+                    Circle().fill(palette.accentSurface)
+                }
+                .overlay { Circle().strokeBorder(palette.accent.opacity(0.55), lineWidth: 1) }
+                .accessibilityLabel("展开拖放操作")
+                .opacity(visible ? 1 : 0)
         }
-        .padding(ShelfDragActionsView.margin)
+        .frame(width: size.width, height: size.height)
         .animation(
             reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: ShelfDragActionsView.transitionDuration),
             value: visible
+        )
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: ShelfDragActionsView.transitionDuration),
+            value: expanded
         )
         .accessibilityHidden(!visible)
         .task { ready = true }

@@ -169,7 +169,7 @@ final class ShelfDropHostingView: NSView {
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         if isReturningDrag(sender) { return .copy }
         guard let store, store.updateExternalDrop(sender) else { return [] }
-        store.targetedDragAction = nil
+        store.collapseDragActions()
         return .copy
     }
 

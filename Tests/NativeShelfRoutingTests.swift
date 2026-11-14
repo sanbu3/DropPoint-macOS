@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class NativeShelfRoutingTests: XCTestCase {
-    func testExternalDragActionsSurviveTheTransitionOutOfTheShelf() async throws {
+    func testDragTriggerStaysUntilReleaseAndGatesActionTargets() async throws {
         let store = ShelfStore()
         let controller = ShelfWindowController(store: store, alwaysOnTop: true)
         defer { controller.close() }
@@ -16,24 +16,39 @@ final class NativeShelfRoutingTests: XCTestCase {
         let panel = try XCTUnwrap(controller.dragActionsPanel)
         let targets = try XCTUnwrap(panel.contentView as? ShelfDragActionsView)
         XCTAssertEqual(panel.frame.maxY, controller.window?.frame.minY)
+        let center = NSPoint(x: targets.bounds.midX, y: targets.bounds.midY)
+        XCTAssertEqual(panel.frame.midX, controller.window?.frame.midX)
+        XCTAssertFalse(store.dragActionsExpanded)
+        XCTAssertEqual(targets.updateTarget(at: NSPoint(x: 26, y: 26)), [])
+        XCTAssertFalse(store.dragActionsExpanded, "a hidden action cannot expand the row")
+        XCTAssertEqual(targets.updateTarget(at: center), .copy)
+        XCTAssertTrue(store.dragActionsExpanded)
         XCTAssertEqual(targets.action(at: NSPoint(x: 26, y: 26)), .archive)
         XCTAssertEqual(targets.action(at: NSPoint(x: 78, y: 26)), .compressImages)
-        XCTAssertEqual(targets.action(at: NSPoint(x: 130, y: 26)), .resizeImages)
-        XCTAssertEqual(targets.action(at: NSPoint(x: 182, y: 26)), .airDrop)
+        XCTAssertNil(targets.action(at: center))
+        XCTAssertEqual(targets.action(at: NSPoint(x: 182, y: 26)), .resizeImages)
+        XCTAssertEqual(targets.action(at: NSPoint(x: 234, y: 26)), .airDrop)
         XCTAssertNil(targets.action(at: NSPoint(x: 52, y: 26)))
         store.targetedDragAction = .archive
         XCTAssertEqual(targets.action(at: NSPoint(x: 50, y: 26)), .archive)
 
-        store.scheduleDropTargetExit()
+        store.scheduleDropTargetExit(isMouseDown: { true })
         store.updateDropTargeted(true)
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertTrue(controller.dragActionsPanel === panel)
 
-        store.scheduleDropTargetExit()
+        var mouseDown = true
+        store.scheduleDropTargetExit(isMouseDown: { mouseDown })
         try await Task.sleep(for: .milliseconds(200))
-        XCTAssertTrue(controller.dragActionsPanel === panel, "keep the panel through the exit animation")
-        XCTAssertTrue(panel.ignoresMouseEvents)
-        try await Task.sleep(for: .milliseconds(350))
+        XCTAssertTrue(controller.dragActionsPanel === panel, "the trigger stays visible outside the row")
+        XCTAssertTrue(store.showsDragActions)
+        XCTAssertFalse(store.isDropTargeted)
+        XCTAssertFalse(store.dragActionsExpanded)
+        XCTAssertNil(targets.action(at: NSPoint(x: 26, y: 26)))
+        XCTAssertFalse(panel.ignoresMouseEvents)
+        mouseDown = false
+        try await Task.sleep(for: .milliseconds(470))
+        XCTAssertFalse(store.showsDragActions)
         XCTAssertNil(controller.dragActionsPanel)
         XCTAssertFalse(panel.isVisible)
     }
