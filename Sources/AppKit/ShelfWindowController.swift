@@ -182,6 +182,7 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
 
     func orderOutAnimated() {
         guard !hasClosed, pendingDragDisposition != .close else { return }
+        DragDiagnostics.record("window-hide-request", store: store)
         cancelOptionHold()
         resetPullDownGesture()
         onWillDismiss?(self)
@@ -473,9 +474,13 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
             Task { @MainActor in
                 guard let self, !self.hasClosed, self.visibilityGeneration == generation,
                       self.outDisposition != nil, let window = self.window else { return }
-                AppDiagnostics.record("window-out-completed", category: "Window", fields: ["shelf": self.store.diagnosticID, "reason": reason])
+                let finalDisposition = self.outDisposition ?? disposition
+                AppDiagnostics.record("window-out-completed", category: "Window", fields: [
+                    "shelf": self.store.diagnosticID, "reason": reason,
+                    "disposition": finalDisposition == .hide ? "hide" : "close"
+                ])
                 window.orderOut(nil)
-                self.finishOut(self.outDisposition ?? disposition, restoring: originalOrigin)
+                self.finishOut(finalDisposition, restoring: originalOrigin)
             }
         }
         NSAnimationContext.runAnimationGroup { context in

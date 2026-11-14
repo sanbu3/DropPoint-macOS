@@ -2,7 +2,7 @@ import AppKit
 
 @MainActor
 enum ShelfContextMenuFactory {
-    static func make(for store: ShelfStore) -> NSMenu {
+    static func make(for store: ShelfStore, iconRows: Bool = false) -> NSMenu {
         let handler = ShelfContextMenuHandler(store: store)
         let menu = RetainedShelfMenu(handler: handler)
 
@@ -16,10 +16,28 @@ enum ShelfContextMenuFactory {
             item.isEnabled = hasSelection
             return item
         }
-        func appendGroup(_ items: [NSMenuItem]) {
+        func appendGroup(_ items: [NSMenuItem], keepingLabels: Bool = false) {
             guard !items.isEmpty else { return }
             if !menu.items.isEmpty { menu.addItem(.separator()) }
-            items.forEach(menu.addItem)
+            guard iconRows, !keepingLabels else {
+                items.forEach(menu.addItem)
+                return
+            }
+            var row: [NSMenuItem] = []
+            func flushRow() {
+                guard !row.isEmpty else { return }
+                menu.addItem(iconRow(row, in: menu))
+                row.removeAll()
+            }
+            for item in items {
+                if item.submenu != nil || item.image == nil {
+                    flushRow()
+                    menu.addItem(item)
+                } else {
+                    row.append(item)
+                }
+            }
+            flushRow()
         }
 
         if store.instantActionsEnabled {
@@ -57,7 +75,7 @@ enum ShelfContextMenuFactory {
                 parent.submenu = submenu
                 appendGroup([parent])
             }
-            appendGroup(enabled.filter { $0 == .trash }.map(actionItem))
+            appendGroup(enabled.filter { $0 == .trash }.map(actionItem), keepingLabels: true)
         }
 
         var identityItems: [NSMenuItem] = []
@@ -66,9 +84,7 @@ enum ShelfContextMenuFactory {
         identityItems.append(renameShelf)
         let colors = NSMenuItem(title: "文件架颜色", action: nil, keyEquivalent: "")
         colors.image = symbol("paintpalette")
-        let colorMenu = NSMenu(title: "文件架颜色")
-        configure(colorMenu)
-        for tint in ShelfTint.allCases {
+        let colorItems = ShelfTint.allCases.map { tint in
             let colorItem = NSMenuItem(title: tint.title,
                                        action: #selector(ShelfContextMenuHandler.setTint(_:)),
                                        keyEquivalent: "")
@@ -76,10 +92,8 @@ enum ShelfContextMenuFactory {
             colorItem.representedObject = tint.rawValue
             colorItem.image = tintSwatch(tint)
             colorItem.state = tint == store.tint ? .on : .off
-            colorMenu.addItem(colorItem)
+            return colorItem
         }
-        colors.submenu = colorMenu
-        identityItems.append(colors)
         let pin = item(
             title: store.isPinned ? "取消固定文件架" : "固定文件架",
             symbol: store.isPinned ? "pin.slash" : "pin",
@@ -88,6 +102,15 @@ enum ShelfContextMenuFactory {
         )
         identityItems.append(pin)
         appendGroup(identityItems)
+        if iconRows {
+            menu.addItem(iconRow(colorItems, in: menu, title: "文件架颜色"))
+        } else {
+            let colorMenu = NSMenu(title: "文件架颜色")
+            configure(colorMenu)
+            colorItems.forEach(colorMenu.addItem)
+            colors.submenu = colorMenu
+            menu.insertItem(colors, at: menu.numberOfItems - 1)
+        }
 
         let clear = item(title: "清空文件架", symbol: "clear",
                          selector: #selector(ShelfContextMenuHandler.clearShelf), handler: handler)
@@ -110,9 +133,28 @@ enum ShelfContextMenuFactory {
             down.isEnabled = hasSelection
             shelfItems.append(down)
         }
-        shelfItems.append(contentsOf: [clear, hide])
-        appendGroup(shelfItems)
+        if iconRows {
+            shelfItems.append(hide)
+            appendGroup(shelfItems)
+            menu.addItem(clear)
+            menu.addItem(.separator())
+            let allActions = NSMenuItem(title: "所有操作", action: nil, keyEquivalent: "")
+            allActions.image = symbol("list.bullet")
+            allActions.submenu = make(for: store)
+            menu.addItem(allActions)
+        } else {
+            shelfItems.append(contentsOf: [clear, hide])
+            appendGroup(shelfItems)
+        }
         return menu
+    }
+
+    private static func iconRow(
+        _ commands: [NSMenuItem], in menu: NSMenu, title: String = "快捷操作"
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.view = ShelfMenuIconRow(commands: commands, menu: menu)
+        return item
     }
 
     private static func openWithMenu(
@@ -177,6 +219,54 @@ enum ShelfContextMenuFactory {
         return item
     }
 
+}
+
+/// Keep native menu tracking while using ordinary controls for icon rows.
+@MainActor
+final class ShelfMenuIconRow: NSView {
+    let commands: [NSMenuItem]
+    private weak var owningMenu: NSMenu?
+
+    init(commands: [NSMenuItem], menu: NSMenu) {
+        self.commands = commands
+        owningMenu = menu
+        let buttonSize: CGFloat = 33
+        let gap: CGFloat = 4
+        let inset: CGFloat = 9
+        super.init(frame: NSRect(x: 0, y: 0, width: 2 * inset + CGFloat(commands.count) * (buttonSize + gap) - gap, height: 37))
+        for (index, command) in commands.enumerated() {
+            let button = NSButton(frame: NSRect(x: inset + CGFloat(index) * (buttonSize + gap), y: 2, width: buttonSize, height: buttonSize))
+            button.title = ""
+            button.image = command.image
+            button.imagePosition = .imageOnly
+            button.imageScaling = .scaleProportionallyDown
+            button.bezelStyle = .texturedRounded
+            button.showsBorderOnlyWhileMouseInside = command.state != .on
+            button.setButtonType(.momentaryPushIn)
+            button.toolTip = command.title
+            button.setAccessibilityLabel(command.title)
+            if command.state == .on { button.setAccessibilityValue("已选中") }
+            button.isEnabled = command.isEnabled
+            button.tag = index
+            button.target = self
+            button.action = #selector(activate(_:))
+            addSubview(button)
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    @objc private func activate(_ button: NSButton) {
+        guard commands.indices.contains(button.tag) else { return }
+        let command = commands[button.tag]
+        guard command.isEnabled, let action = command.action, let target = command.target else { return }
+        owningMenu?.cancelTracking()
+        // Run modal operations after AppKit has unwound menu tracking.
+        DispatchQueue.main.async {
+            NSApp.sendAction(action, to: target, from: command)
+        }
+    }
 }
 
 @MainActor

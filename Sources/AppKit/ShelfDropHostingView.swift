@@ -159,7 +159,7 @@ final class ShelfDropHostingView: NSView {
             super.rightMouseDown(with: event)
             return
         }
-        NSMenu.popUpContextMenu(ShelfContextMenuFactory.make(for: store), with: event, for: self)
+        NSMenu.popUpContextMenu(ShelfContextMenuFactory.make(for: store, iconRows: true), with: event, for: self)
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {

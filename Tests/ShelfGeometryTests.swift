@@ -1292,6 +1292,31 @@ final class OptionHoldClearGestureTests: XCTestCase {
 
 @MainActor
 final class InteractionSafetyTests: XCTestCase {
+    func testIconRowsKeepActionsAndSelectionRules() async throws {
+        let store = ShelfStore()
+        store.items = [try XCTUnwrap(ShelfItem.make(url: URL(fileURLWithPath: #filePath)))]
+        store.enabledActions = [.reveal, .open, .archive, .trash]
+        let hidden = expectation(description: "the menu button dispatches the hide action")
+        store.onCollapse = { hidden.fulfill() }
+
+        let menu = ShelfContextMenuFactory.make(for: store, iconRows: true)
+        let rows = menu.items.compactMap { $0.view as? ShelfMenuIconRow }
+        let buttons = rows.flatMap(\.subviews).compactMap { $0 as? NSButton }
+        XCTAssertTrue(buttons.contains { $0.toolTip == "压缩为 ZIP" && $0.image != nil && $0.title.isEmpty })
+        XCTAssertTrue(menu.items.contains { $0.title == "移到废纸篓" && $0.submenu == nil })
+        XCTAssertTrue(menu.items.contains { $0.title == "清空文件架" && $0.submenu == nil })
+        let hide = try XCTUnwrap(buttons.first { $0.toolTip == "隐藏文件架" })
+        hide.performClick(nil)
+        await fulfillment(of: [hidden], timeout: 2)
+        XCTAssertNotNil(menu.items.first { $0.title == "所有操作" }?.submenu)
+
+        store.isExpanded = true
+        let unselected = ShelfContextMenuFactory.make(for: store, iconRows: true)
+        let unselectedButtons = unselected.items.compactMap { $0.view as? ShelfMenuIconRow }
+            .flatMap(\.subviews).compactMap { $0 as? NSButton }
+        XCTAssertFalse(try XCTUnwrap(unselectedButtons.first { $0.toolTip == "压缩为 ZIP" }).isEnabled)
+    }
+
     func testContextMenuGroupsConfiguredActionsAndDisablesEmptySelection() throws {
         let store = ShelfStore()
         store.items = [try XCTUnwrap(ShelfItem.make(url: URL(fileURLWithPath: #filePath)))]
