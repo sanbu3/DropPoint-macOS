@@ -4,8 +4,8 @@ import SwiftUI
 /// The renderer and native drop targets share fixed centers throughout the animation.
 @MainActor
 final class ShelfDragActionsView: NSView {
-    static let actionDiameter: CGFloat = 28
-    static let triggerDiameter: CGFloat = 24
+    static let actionDiameter: CGFloat = 36
+    static let triggerDiameter: CGFloat = 32
     static let targetDiameter: CGFloat = 36
     static let spacing: CGFloat = 6
     static let margin: CGFloat = 4
@@ -128,7 +128,7 @@ private struct DragActionCircles: View {
                 let targeted = store.targetedDragAction == action
                 let offset = ShelfDragActionsView.actionOffset(index, count: actions.count)
                 Image(systemName: action.systemImage)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(targeted ? palette.accent : palette.ink)
                     .frame(width: ShelfDragActionsView.actionDiameter, height: ShelfDragActionsView.actionDiameter)
                     .background {
@@ -148,7 +148,7 @@ private struct DragActionCircles: View {
             }
 
             Image(systemName: "ellipsis")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(palette.accent)
                 .frame(width: ShelfDragActionsView.triggerDiameter, height: ShelfDragActionsView.triggerDiameter)
                 .background {
