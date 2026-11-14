@@ -683,9 +683,9 @@ final class ShelfWindowController: NSWindowController, NSWindowDelegate {
         let progress = optionGesture.progress(at: ProcessInfo.processInfo.systemUptime)
         store.optionClearProgress = progress
         if progress >= 1 {
-            cancelOptionHold()
             NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
             store.clearKeepingEmptyShelf()
+            cancelOptionHold()
         }
     }
 

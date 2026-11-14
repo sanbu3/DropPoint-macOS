@@ -34,6 +34,7 @@ final class ShelfStore {
     }
     var optionClearProgress: CGFloat = 0
     var keepsEmptyShelfAfterOptionClear = false
+    private(set) var isFinishingOptionClear = false
     private(set) var isClosed = false
 
     /// User-facing shelf identity. Empty names fall back to a localised
@@ -220,8 +221,13 @@ final class ShelfStore {
     }
 
     func clear() {
+        beginClear(fromOptionHold: false)
+    }
+
+    private func beginClear(fromOptionHold: Bool) {
         guard !items.isEmpty, !isClearing, !isPullClearing else { return }
         let itemIDs = Set(items.map(\.id))
+        isFinishingOptionClear = fromOptionHold
         isClearing = true
 
         if reduceMotion {
@@ -231,7 +237,7 @@ final class ShelfStore {
 
         clearTask = Task { @MainActor [weak self] in
             do {
-                try await Task.sleep(for: .milliseconds(240))
+                try await Task.sleep(for: .milliseconds(fromOptionHold ? 320 : 240))
             } catch {
                 return
             }
@@ -243,7 +249,7 @@ final class ShelfStore {
     func clearKeepingEmptyShelf() {
         guard !items.isEmpty, !isClearing, !isPullClearing else { return }
         keepsEmptyShelfAfterOptionClear = true
-        clear()
+        beginClear(fromOptionHold: true)
     }
 
     func clearFromPullGesture() {
@@ -280,6 +286,7 @@ final class ShelfStore {
             selectedIDs.insert(first.id)
         }
         isClearing = false
+        isFinishingOptionClear = false
         isPullClearing = false
         isDismissGestureActive = false
         dismissGestureProgress = 0
@@ -477,6 +484,7 @@ final class ShelfStore {
         pullClearTask = nil
         cancelThumbnailTasks(for: Set(thumbnailTasks.keys))
         isClearing = false
+        isFinishingOptionClear = false
         updateDropTargeted(false)
         isHovered = false
         isPullClearing = false

@@ -132,9 +132,10 @@ struct ShelfView: View {
             } else {
                 ZStack {
                     CompactFileShelfView(store: store, palette: palette)
-                        .opacity(store.isClearing ? 0 : 1)
-                        .scaleEffect(store.isClearing ? 0.08 : 1, anchor: .center)
-                        .animation(reduceMotion ? nil : .linear(duration: 0.24), value: store.isClearing)
+                        .opacity(store.isClearing && !store.isFinishingOptionClear ? 0 : 1)
+                        .scaleEffect(store.isClearing && !store.isFinishingOptionClear ? 0.08 : 1)
+                        .animation(reduceMotion ? nil : .linear(duration: 0.24), value: store.isClearing && !store.isFinishingOptionClear)
+                        .optionClearMotion(store, travel: 43)
 
                     FileDragOutOverlay(
                         store: store,
@@ -195,24 +196,36 @@ struct ShelfView: View {
     }
 
     private var dragHandle: some View {
-        let holding = store.isOptionClearActive
+        let finishing = store.isFinishingOptionClear
+        let holding = store.isOptionClearActive || finishing
+        let holdProgress = finishing ? 1 : store.optionClearProgress
         let progress = min(max(store.dismissGestureProgress, 0), 1)
         let lengthProgress = min(progress * 1.65, 1)
         let emphasisProgress = min(max((progress - 0.22) / 0.78, 0), 1)
         let active = store.isHovered || store.isFocused
         let restingWidth: CGFloat = active ? 54 : 38
         let dot = store.showsDragActions && !holding
-        let width: CGFloat = dot ? 7 : (holding ? 126 : restingWidth + (110 - restingWidth) * lengthProgress)
-        let height: CGFloat = dot ? 7 : (holding ? 9 : 4 + 2 * emphasisProgress)
+        let width: CGFloat = dot ? 7 : (holding ? 92 + 34 * holdProgress : restingWidth + (110 - restingWidth) * lengthProgress)
+        let height: CGFloat = dot ? 7 : (holding ? 6 + 3 * holdProgress : 4 + 2 * emphasisProgress)
 
         return VStack(spacing: 5) {
             Spacer()
             ZStack(alignment: .leading) {
                 Capsule().fill(palette.handle)
                 if holding {
+                    Capsule().fill(palette.danger.opacity(0.13))
                     Rectangle()
-                        .fill(palette.danger.gradient)
-                        .frame(width: width * store.optionClearProgress)
+                        .fill(LinearGradient(
+                            colors: [palette.danger.opacity(0.58), palette.danger],
+                            startPoint: .leading, endPoint: .trailing
+                        ))
+                        .frame(width: width * holdProgress)
+                    if holdProgress > 0.03 {
+                        Capsule()
+                            .fill(.white.opacity(0.42))
+                            .frame(width: 2, height: height * 0.55)
+                            .offset(x: max(1, width * holdProgress - 4))
+                    }
                 } else {
                     Capsule()
                         .fill(store.isDropTargeted ? palette.accent : palette.activeHandle)
@@ -224,11 +237,15 @@ struct ShelfView: View {
             }
             .frame(width: width, height: height)
             .clipShape(Capsule())
+            .overlay {
+                Capsule().strokeBorder(palette.danger.opacity(finishing ? 0.65 : 0), lineWidth: 1)
+            }
             .opacity(holding || active || dot ? 1 : max(handleOpacity, 0.64 + 0.36 * progress))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(holding ? "清空进度" : "文件架手柄")
-            .accessibilityValue(holding ? "\(Int(store.optionClearProgress * 100))%" : "")
-            .animation(reduceMotion ? nil : .smooth(duration: 0.16), value: holding)
+            .accessibilityValue(holding ? "\(Int(holdProgress * 100))%" : "")
+            .animation(reduceMotion ? nil : .linear(duration: 0.045), value: holdProgress)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.27, extraBounce: 0.08), value: holding)
             .padding(.bottom, 7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

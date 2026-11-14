@@ -94,6 +94,7 @@ struct ExpandedShelfView: View {
             .offset(y: 74 * pullProgress)
             .scaleEffect(1 - 0.1 * fadeProgress, anchor: .bottom)
             .opacity(1 - fadeProgress)
+            .optionClearMotion(store, travel: 38)
             .allowsHitTesting(!store.isDismissGestureActive && !store.isPullClearing)
             .animation(
                 reduceMotion || store.isDismissGestureActive

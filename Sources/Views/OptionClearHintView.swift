@@ -1,5 +1,31 @@
 import SwiftUI
 
+extension View {
+    func optionClearMotion(_ store: ShelfStore, travel: CGFloat) -> some View {
+        modifier(OptionClearContentMotion(store: store, travel: travel))
+    }
+}
+
+private struct OptionClearContentMotion: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let store: ShelfStore
+    let travel: CGFloat
+
+    func body(content: Content) -> some View {
+        let finishing = store.isFinishingOptionClear
+        let progress = store.isOptionClearActive ? store.optionClearProgress : 0
+        let anticipation = progress * progress
+        content
+            .scaleEffect(reduceMotion ? 1 : (finishing ? 0.48 : 1 - 0.065 * anticipation), anchor: .bottom)
+            .offset(y: reduceMotion ? 0 : (finishing ? travel : 7 * anticipation))
+            .animation(reduceMotion ? nil : .linear(duration: 0.045), value: progress)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.30, extraBounce: 0.09), value: store.isOptionClearActive)
+            .animation(reduceMotion ? nil : .easeIn(duration: 0.31), value: finishing)
+            .opacity(finishing ? 0 : 1)
+            .animation(reduceMotion ? nil : .easeIn(duration: 0.22).delay(0.07), value: finishing)
+    }
+}
+
 /// An instruction bubble outside the file surface, pointing back to the shelf.
 struct OptionClearHintView: View {
     @Environment(\.colorScheme) private var colorScheme
