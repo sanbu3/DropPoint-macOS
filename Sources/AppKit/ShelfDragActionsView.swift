@@ -4,8 +4,10 @@ import SwiftUI
 /// The renderer and native drop targets share fixed centers throughout the animation.
 @MainActor
 final class ShelfDragActionsView: NSView {
-    static let diameter: CGFloat = 44
-    static let spacing: CGFloat = 8
+    static let actionDiameter: CGFloat = 28
+    static let triggerDiameter: CGFloat = 24
+    static let targetDiameter: CGFloat = 36
+    static let spacing: CGFloat = 6
     static let margin: CGFloat = 4
     static let hoverScale: CGFloat = 1.12
     static let transitionDuration = 0.28
@@ -13,8 +15,8 @@ final class ShelfDragActionsView: NSView {
     static func panelSize(for actions: [ShelfAction]) -> NSSize {
         let slots = 2 * ((actions.count + 1) / 2) + 1
         return NSSize(
-            width: diameter * CGFloat(slots) + spacing * CGFloat(slots - 1) + 2 * margin,
-            height: diameter + 2 * margin
+            width: targetDiameter * CGFloat(slots) + spacing * CGFloat(slots - 1) + 2 * margin,
+            height: targetDiameter + 2 * margin
         )
     }
 
@@ -78,7 +80,7 @@ final class ShelfDragActionsView: NSView {
     static func actionOffset(_ index: Int, count: Int) -> CGFloat {
         let leftCount = (count + 1) / 2
         let slot = index < leftCount ? index - leftCount : index - leftCount + 1
-        return CGFloat(slot) * (diameter + spacing)
+        return CGFloat(slot) * (targetDiameter + spacing)
     }
 
     func updateTarget(at point: NSPoint) -> NSDragOperation {
@@ -94,7 +96,7 @@ final class ShelfDragActionsView: NSView {
     }
 
     private func isOverTrigger(_ point: NSPoint) -> Bool {
-        hypot(point.x - bounds.midX, point.y - bounds.midY) <= Self.diameter / 2
+        hypot(point.x - bounds.midX, point.y - bounds.midY) <= Self.targetDiameter / 2
     }
 
     func action(at point: NSPoint) -> ShelfAction? {
@@ -102,7 +104,7 @@ final class ShelfDragActionsView: NSView {
         for (index, action) in actions.enumerated() {
             let centerX = bounds.midX + Self.actionOffset(index, count: actions.count)
             let isTargeted = store?.targetedDragAction == action && store?.reduceMotion == false
-            let radius = Self.diameter / 2 * (isTargeted ? Self.hoverScale : 1)
+            let radius = Self.targetDiameter / 2 * (isTargeted ? Self.hoverScale : 1)
             if hypot(point.x - centerX, point.y - bounds.midY) <= radius { return action }
         }
         return nil
@@ -126,15 +128,15 @@ private struct DragActionCircles: View {
                 let targeted = store.targetedDragAction == action
                 let offset = ShelfDragActionsView.actionOffset(index, count: actions.count)
                 Image(systemName: action.systemImage)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(targeted ? palette.accent : palette.ink)
-                    .frame(width: ShelfDragActionsView.diameter, height: ShelfDragActionsView.diameter)
+                    .frame(width: ShelfDragActionsView.actionDiameter, height: ShelfDragActionsView.actionDiameter)
                     .background {
                         Circle().fill(palette.activeSurface)
                         Circle().fill(palette.accentSurface).opacity(targeted ? 1 : 0)
                     }
                     .overlay {
-                        Circle().strokeBorder(targeted ? palette.accent : palette.edge, lineWidth: targeted ? 2 : 1)
+                        Circle().strokeBorder(targeted ? palette.accent : palette.edge, lineWidth: targeted ? 1.5 : 1)
                     }
                     .accessibilityLabel(action.title)
                     .scaleEffect(targeted && !reduceMotion ? ShelfDragActionsView.hoverScale : 1)
@@ -146,9 +148,9 @@ private struct DragActionCircles: View {
             }
 
             Image(systemName: "ellipsis")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(palette.accent)
-                .frame(width: ShelfDragActionsView.diameter, height: ShelfDragActionsView.diameter)
+                .frame(width: ShelfDragActionsView.triggerDiameter, height: ShelfDragActionsView.triggerDiameter)
                 .background {
                     Circle().fill(palette.activeSurface)
                     Circle().fill(palette.accentSurface)
