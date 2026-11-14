@@ -670,7 +670,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 30;
+				CURRENT_PROJECT_VERSION = 31;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -678,7 +678,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.19;
+				MARKETING_VERSION = 2.0.20;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
@@ -707,7 +707,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 30;
+				CURRENT_PROJECT_VERSION = 31;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -715,7 +715,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.19;
+				MARKETING_VERSION = 2.0.20;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;

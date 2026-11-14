@@ -13,34 +13,36 @@ struct ShelfView: View {
         ShelfPalette(dark: colorScheme == .dark, focused: store.isFocused, tint: store.tint)
     }
 
+    private var showsZIPPreview: Bool { store.targetedDragAction == .archive }
+
+    private var zipPreview: some View {
+        Group {
+            if reduceMotion {
+                Image(systemName: "archivebox.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(palette.accent)
+            } else {
+                AnimatedSVGView(name: "ZIP File Icon", pauseAfterCycle: true)
+            }
+        }
+        .frame(width: 78, height: 78)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     var body: some View {
         ZStack {
             shelfBackground
             if store.isExpanded {
                 ExpandedShelfView(store: store, palette: palette)
+            } else if showsZIPPreview {
+                zipPreview
             } else {
                 compactContent
             }
             controls
             dragHandle
             windowDragAreas
-            if let id = store.archiveAnimationID {
-                Group {
-                    if reduceMotion {
-                        Image(systemName: "archivebox.fill")
-                            .font(.system(size: 36))
-                            .foregroundStyle(palette.accent)
-                    } else {
-                        AnimatedSVGView(name: "ZIP File Icon", pauseAfterCycle: true)
-                    }
-                }
-                .frame(width: 78, height: 78)
-                .padding(12)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-                .id(id)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            }
             if let action = store.targetedDragAction {
                 VStack {
                     Spacer()

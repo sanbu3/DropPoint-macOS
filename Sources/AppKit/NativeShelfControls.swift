@@ -7,6 +7,7 @@ struct NativeShelfAction: NSViewRepresentable {
     let label: String
     var enabled = true
     var menu: (() -> NSMenu)?
+    var hover: ((Bool) -> Void)?
     let action: () -> Void
 
     func makeNSView(context: Context) -> ShelfNativeButton {
@@ -22,6 +23,7 @@ struct NativeShelfAction: NSViewRepresentable {
     }
     func updateNSView(_ button: ShelfNativeButton, context: Context) {
         button.actionBody = action
+        button.hoverBody = hover
         button.menuProvider = menu
         button.isEnabled = enabled && context.environment.isEnabled
         button.toolTip = label
@@ -30,11 +32,27 @@ struct NativeShelfAction: NSViewRepresentable {
     }
     static func dismantleNSView(_ button: ShelfNativeButton, coordinator: ()) {
         button.actionBody = nil
+        button.hoverBody = nil
         button.menuProvider = nil
     }
 }
 
 final class ShelfNativeButton: NSButton {
+    var hoverBody: ((Bool) -> Void)?
+    private var hoverArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        hoverArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { hoverBody?(isEnabled) }
+    override func mouseExited(with event: NSEvent) { hoverBody?(false) }
+
     var actionBody: (() -> Void)?
     var menuProvider: (() -> NSMenu)?
     override var acceptsFirstResponder: Bool { isEnabled }
@@ -77,10 +95,10 @@ final class ShelfNativeTitleView: NSView {
 
 extension View {
     @ViewBuilder
-    func nativeShelfAction(_ label: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
+    func nativeShelfAction(_ label: String, enabled: Bool = true, hover: ((Bool) -> Void)? = nil, action: @escaping () -> Void) -> some View {
         if #available(macOS 27, *) {
-            accessibilityHidden(true).overlay(NativeShelfAction(label: label, enabled: enabled, action: action))
-        } else { self }
+            accessibilityHidden(true).overlay(NativeShelfAction(label: label, enabled: enabled, hover: hover, action: action))
+        } else { onHover { hover?($0 && enabled) } }
     }
     @ViewBuilder
     func nativeShelfMenu(_ label: String, menu: @escaping () -> NSMenu) -> some View {

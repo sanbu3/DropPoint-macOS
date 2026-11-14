@@ -5,6 +5,8 @@ import SwiftUI
 /// the most common actions one click away.
 struct ShelfQuickActionBar: View {
     let store: ShelfStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var zipHovered = false
     let palette: ShelfPalette
 
     private let preferred: [ShelfAction] = [
@@ -81,11 +83,21 @@ struct ShelfQuickActionBar: View {
 
     private func quickButton(_ action: ShelfAction) -> some View {
         Button {
+            zipHovered = false
             store.perform(action)
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: action.systemImage)
-                    .font(.system(size: 10, weight: .semibold))
+                Group {
+                    if action == .archive && (zipHovered || store.targetedDragAction == .archive) && !reduceMotion {
+                        AnimatedSVGView(name: "ZIP File Icon", pauseAfterCycle: true)
+                            .allowsHitTesting(false)
+                    } else {
+                        Image(systemName: action.systemImage)
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                }
+                .frame(width: 14, height: 16)
+                .accessibilityHidden(true)
                 Text(shortTitle(action))
                     .font(.system(size: 10.5, weight: .medium, design: .rounded))
                     .lineLimit(1)
@@ -98,10 +110,14 @@ struct ShelfQuickActionBar: View {
         }
         .buttonStyle(.plain)
         .shelfFocusRing(Capsule(), color: palette.accent)
+        .onChange(of: hasSelection) { if !hasSelection { zipHovered = false } }
         .disabled(!hasSelection)
         .dropPointHelp(action.title)
         .accessibilityLabel(action.title)
-        .nativeShelfAction(action.title, enabled: hasSelection) { store.perform(action) }
+        .nativeShelfAction(action.title, enabled: hasSelection, hover: action == .archive ? { zipHovered = $0 } : nil) {
+            zipHovered = false
+            store.perform(action)
+        }
     }
 
     private func shortTitle(_ action: ShelfAction) -> String {

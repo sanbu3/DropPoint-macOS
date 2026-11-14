@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.statusBar.refresh()
         }
 
+        _ = ShelfArtworkPlayer.artwork(named: "ZIP File Icon")
         hotKeys = GlobalHotKeyMonitor()
         hotKeys.onMainShortcut = { [weak self] in
             guard let self else { return }

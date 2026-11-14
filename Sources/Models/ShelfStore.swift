@@ -11,7 +11,6 @@ final class ShelfStore {
     var selectedIDs: Set<String> = []
     var isExpanded = false
     private(set) var isDropTargeted = false
-    private(set) var archiveAnimationID: UUID?
     var targetedDragAction: ShelfAction?
     private(set) var dragActions: [ShelfAction] = []
     private(set) var dragActionsExpanded = false
@@ -380,9 +379,7 @@ final class ShelfStore {
         AppDiagnostics.record("shelf-action", category: "Action", fields: ["shelf": diagnosticID, "action": action.rawValue, "selection": String(selectedItems.count)])
         let selected = selectedItems
         let idsByURL = Dictionary(uniqueKeysWithValues: selected.map { ($0.url.standardizedFileURL, $0.id) })
-        ShelfActionService.perform(action, urls: selected.map(\.url), onArchiveStarted: { [weak self] in
-            self?.playArchiveAnimation()
-        }) { [weak self] succeeded in
+        ShelfActionService.perform(action, urls: selected.map(\.url)) { [weak self] succeeded in
             if action == .groupInFolder { self?.isGroupingInFolder = false }
             AppDiagnostics.record("shelf-action-completed", category: "Action", fields: ["shelf": self?.diagnosticID ?? "released", "succeeded": String(succeeded.count)])
             if action == .compressImages || action == .resizeImages {
@@ -391,16 +388,6 @@ final class ShelfStore {
             }
             guard action == .moveTo || action == .groupInFolder || action == .trash else { return }
             self?.remove(items: Set(succeeded.compactMap { idsByURL[$0.standardizedFileURL] }))
-        }
-    }
-
-    func playArchiveAnimation() {
-        guard !isClosed else { return }
-        let id = UUID()
-        archiveAnimationID = id
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(1370))
-            if self?.archiveAnimationID == id { self?.archiveAnimationID = nil }
         }
     }
 
