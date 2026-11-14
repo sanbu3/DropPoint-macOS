@@ -35,7 +35,7 @@ struct ShelfWindowDragOverlay: NSViewRepresentable {
     private func update(_ view: DragPassThroughNSView) {
         view.dropStore = store
         view.onBackgroundDoubleClick = store.clear
-        view.contextMenuProvider = { ShelfContextMenuFactory.make(for: store, iconRows: true) }
+        view.contextMenuProvider = { ShelfContextMenuFactory.make(for: store) }
     }
 }
 

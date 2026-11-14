@@ -291,7 +291,7 @@ private struct ExpandedFileTile: View {
                 onDragEnded: store.finishInternalDrag,
                 contextMenuProvider: {
                     store.select(item, extending: false)
-                    return ShelfContextMenuFactory.make(for: store, iconRows: true)
+                    return ShelfContextMenuFactory.make(for: store)
                 }
             )
         }

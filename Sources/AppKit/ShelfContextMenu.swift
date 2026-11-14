@@ -2,7 +2,7 @@ import AppKit
 
 @MainActor
 enum ShelfContextMenuFactory {
-    static func make(for store: ShelfStore, iconRows: Bool = false) -> NSMenu {
+    static func make(for store: ShelfStore) -> NSMenu {
         let handler = ShelfContextMenuHandler(store: store)
         let menu = RetainedShelfMenu(handler: handler)
 
@@ -16,28 +16,10 @@ enum ShelfContextMenuFactory {
             item.isEnabled = hasSelection
             return item
         }
-        func appendGroup(_ items: [NSMenuItem], keepingLabels: Bool = false) {
+        func appendGroup(_ items: [NSMenuItem]) {
             guard !items.isEmpty else { return }
             if !menu.items.isEmpty { menu.addItem(.separator()) }
-            guard iconRows, !keepingLabels else {
-                items.forEach(menu.addItem)
-                return
-            }
-            var row: [NSMenuItem] = []
-            func flushRow() {
-                guard !row.isEmpty else { return }
-                menu.addItem(iconRow(row, in: menu))
-                row.removeAll()
-            }
-            for item in items {
-                if item.submenu != nil || item.image == nil {
-                    flushRow()
-                    menu.addItem(item)
-                } else {
-                    row.append(item)
-                }
-            }
-            flushRow()
+            items.forEach(menu.addItem)
         }
 
         if store.instantActionsEnabled {
@@ -62,7 +44,7 @@ enum ShelfContextMenuFactory {
 
             if !store.customActions.isEmpty {
                 let parent = NSMenuItem(title: "自定义操作", action: nil, keyEquivalent: "")
-                parent.image = symbol("bolt")
+                setImage(symbol("bolt"), on: parent)
                 let submenu = NSMenu(title: "自定义操作")
                 configure(submenu)
                 for action in store.customActions {
@@ -75,22 +57,20 @@ enum ShelfContextMenuFactory {
                 parent.submenu = submenu
                 appendGroup([parent])
             }
-            appendGroup(enabled.filter { $0 == .trash }.map(actionItem), keepingLabels: true)
+            appendGroup(enabled.filter { $0 == .trash }.map(actionItem))
         }
 
-        var identityItems: [NSMenuItem] = []
         let renameShelf = item(title: "重命名文件架…", symbol: "pencil",
                                selector: #selector(ShelfContextMenuHandler.renameShelf), handler: handler)
-        identityItems.append(renameShelf)
         let colors = NSMenuItem(title: "文件架颜色", action: nil, keyEquivalent: "")
-        colors.image = symbol("paintpalette")
+        setImage(symbol("paintpalette"), on: colors)
         let colorItems = ShelfTint.allCases.map { tint in
             let colorItem = NSMenuItem(title: tint.title,
                                        action: #selector(ShelfContextMenuHandler.setTint(_:)),
                                        keyEquivalent: "")
             colorItem.target = handler
             colorItem.representedObject = tint.rawValue
-            colorItem.image = tintSwatch(tint)
+            setImage(tintSwatch(tint), on: colorItem)
             colorItem.state = tint == store.tint ? .on : .off
             return colorItem
         }
@@ -100,17 +80,11 @@ enum ShelfContextMenuFactory {
             selector: #selector(ShelfContextMenuHandler.togglePin),
             handler: handler
         )
-        identityItems.append(pin)
-        appendGroup(identityItems)
-        if iconRows {
-            menu.addItem(iconRow(colorItems, in: menu, title: "文件架颜色"))
-        } else {
-            let colorMenu = NSMenu(title: "文件架颜色")
-            configure(colorMenu)
-            colorItems.forEach(colorMenu.addItem)
-            colors.submenu = colorMenu
-            menu.insertItem(colors, at: menu.numberOfItems - 1)
-        }
+        let colorMenu = NSMenu(title: "文件架颜色")
+        configure(colorMenu)
+        colorItems.forEach(colorMenu.addItem)
+        colors.submenu = colorMenu
+        appendGroup([renameShelf, colors, pin])
 
         let clear = item(title: "清空文件架", symbol: "clear",
                          selector: #selector(ShelfContextMenuHandler.clearShelf), handler: handler)
@@ -133,28 +107,9 @@ enum ShelfContextMenuFactory {
             down.isEnabled = hasSelection
             shelfItems.append(down)
         }
-        if iconRows {
-            shelfItems.append(hide)
-            appendGroup(shelfItems)
-            menu.addItem(clear)
-            menu.addItem(.separator())
-            let allActions = NSMenuItem(title: "所有操作", action: nil, keyEquivalent: "")
-            allActions.image = symbol("list.bullet")
-            allActions.submenu = make(for: store)
-            menu.addItem(allActions)
-        } else {
-            shelfItems.append(contentsOf: [clear, hide])
-            appendGroup(shelfItems)
-        }
+        shelfItems.append(contentsOf: [clear, hide])
+        appendGroup(shelfItems)
         return menu
-    }
-
-    private static func iconRow(
-        _ commands: [NSMenuItem], in menu: NSMenu, title: String = "快捷操作"
-    ) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.view = ShelfMenuIconRow(commands: commands, menu: menu)
-        return item
     }
 
     private static func openWithMenu(
@@ -167,7 +122,7 @@ enum ShelfContextMenuFactory {
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
         guard !applications.isEmpty else { return nil }
         let parent = NSMenuItem(title: "打开方式", action: nil, keyEquivalent: "")
-        parent.image = symbol("arrow.up.forward.app")
+        setImage(symbol("arrow.up.forward.app"), on: parent)
         let submenu = NSMenu(title: "打开方式")
         configure(submenu)
         for application in applications.prefix(12) {
@@ -180,7 +135,7 @@ enum ShelfContextMenuFactory {
             appItem.representedObject = application
             let icon = NSWorkspace.shared.icon(forFile: application.path)
             icon.size = NSSize(width: 16, height: 16)
-            appItem.image = icon
+            setImage(icon, on: appItem)
             submenu.addItem(appItem)
         }
         parent.submenu = submenu
@@ -204,6 +159,13 @@ enum ShelfContextMenuFactory {
         menu.autoenablesItems = false
     }
 
+    private static func setImage(_ image: NSImage?, on item: NSMenuItem) {
+        item.image = image
+        if #available(macOS 27.0, *) {
+            item.preferredImageVisibility = .visible
+        }
+    }
+
     private static func symbol(_ name: String) -> NSImage? {
         let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 16, weight: .regular))
@@ -214,59 +176,11 @@ enum ShelfContextMenuFactory {
     private static func item(title: String, symbol name: String, selector: Selector,
                              handler: ShelfContextMenuHandler) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
-        item.image = symbol(name)
+        setImage(symbol(name), on: item)
         item.target = handler
         return item
     }
 
-}
-
-/// Keep native menu tracking while using ordinary controls for icon rows.
-@MainActor
-final class ShelfMenuIconRow: NSView {
-    let commands: [NSMenuItem]
-    private weak var owningMenu: NSMenu?
-
-    init(commands: [NSMenuItem], menu: NSMenu) {
-        self.commands = commands
-        owningMenu = menu
-        let buttonSize: CGFloat = 33
-        let gap: CGFloat = 4
-        let inset: CGFloat = 9
-        super.init(frame: NSRect(x: 0, y: 0, width: 2 * inset + CGFloat(commands.count) * (buttonSize + gap) - gap, height: 37))
-        for (index, command) in commands.enumerated() {
-            let button = NSButton(frame: NSRect(x: inset + CGFloat(index) * (buttonSize + gap), y: 2, width: buttonSize, height: buttonSize))
-            button.title = ""
-            button.image = command.image
-            button.imagePosition = .imageOnly
-            button.imageScaling = .scaleProportionallyDown
-            button.bezelStyle = .texturedRounded
-            button.showsBorderOnlyWhileMouseInside = command.state != .on
-            button.setButtonType(.momentaryPushIn)
-            button.toolTip = command.title
-            button.setAccessibilityLabel(command.title)
-            if command.state == .on { button.setAccessibilityValue("已选中") }
-            button.isEnabled = command.isEnabled
-            button.tag = index
-            button.target = self
-            button.action = #selector(activate(_:))
-            addSubview(button)
-        }
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { nil }
-
-    @objc private func activate(_ button: NSButton) {
-        guard commands.indices.contains(button.tag) else { return }
-        let command = commands[button.tag]
-        guard command.isEnabled, let action = command.action, let target = command.target else { return }
-        owningMenu?.cancelTracking()
-        // Run modal operations after AppKit has unwound menu tracking.
-        DispatchQueue.main.async {
-            NSApp.sendAction(action, to: target, from: command)
-        }
-    }
 }
 
 @MainActor

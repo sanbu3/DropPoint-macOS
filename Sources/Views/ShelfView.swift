@@ -144,7 +144,7 @@ struct ShelfView: View {
                         onDoubleClick: { store.performDoubleClick() },
                         onDragBegan: store.beginInternalDrag,
                         onDragEnded: store.finishInternalDrag,
-                        contextMenuProvider: { ShelfContextMenuFactory.make(for: store, iconRows: true) }
+                        contextMenuProvider: { ShelfContextMenuFactory.make(for: store) }
                     )
                         .frame(width: 92, height: 94)
                         .position(x: 99, y: 95)
