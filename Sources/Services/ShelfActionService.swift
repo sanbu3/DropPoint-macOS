@@ -75,6 +75,8 @@ enum ShelfActionService {
             chooseAndTransfer(fileURLs, moving: false, completion: completion)
         case .moveTo:
             chooseAndTransfer(fileURLs, moving: true, completion: completion)
+        case .groupInFolder:
+            groupInFolder(fileURLs, completion: completion)
         case .trash:
             NSWorkspace.shared.recycle(fileURLs) { recycled, error in
                 Task { @MainActor in
@@ -150,28 +152,8 @@ enum ShelfActionService {
         completion: (@MainActor @Sendable (Set<URL>) -> Void)?
     ) {
         Task {
-            let outcome = await Task.detached(priority: .utility) { () -> TransferOutcome in
-                let fileManager = FileManager.default
-                var succeeded = Set<URL>()
-                var errors: [String] = []
-                for source in urls {
-                    do {
-                        let target = uniqueDestination(
-                            named: source.lastPathComponent,
-                            in: destination,
-                            fileManager: fileManager
-                        )
-                        if moving {
-                            try fileManager.moveItem(at: source, to: target)
-                        } else {
-                            try fileManager.copyItem(at: source, to: target)
-                        }
-                        succeeded.insert(source.standardizedFileURL)
-                    } catch {
-                        errors.append("\(source.lastPathComponent)：\(error.localizedDescription)")
-                    }
-                }
-                return TransferOutcome(succeeded: succeeded, errors: errors)
+            let outcome = await Task.detached(priority: .utility) {
+                transferFiles(urls, moving: moving, destination: destination)
             }.value
             if !outcome.errors.isEmpty {
                 showError(
@@ -181,6 +163,153 @@ enum ShelfActionService {
             }
             completion?(outcome.succeeded)
         }
+    }
+
+    private static func groupInFolder(
+        _ urls: [URL],
+        completion: (@MainActor @Sendable (Set<URL>) -> Void)?
+    ) {
+        let alert = NSAlert()
+        alert.messageText = "新建文件夹并移入"
+        alert.informativeText = "输入文件夹名称并选择位置。将移动 \(urls.count) 个项目。"
+        alert.addButton(withTitle: "移动")
+        alert.addButton(withTitle: "取消")
+
+        let nameField = NSTextField(string: "新建文件夹")
+        nameField.setAccessibilityLabel("文件夹名称")
+        let locations = NSPopUpButton()
+        locations.setAccessibilityLabel("放置位置")
+        let commonLocations: [(String, FileManager.SearchPathDirectory)] = [
+            ("桌面", .desktopDirectory), ("下载", .downloadsDirectory), ("文稿", .documentDirectory)
+        ]
+        let directories = commonLocations.compactMap { title, directory -> (String, URL)? in
+            FileManager.default.urls(for: directory, in: .userDomainMask).first.map { (title, $0) }
+        }
+        locations.addItems(withTitles: directories.map { $0.0 } + ["其他位置…"])
+        let fields = NSStackView(views: [nameField, locations])
+        fields.orientation = .vertical
+        fields.alignment = .leading
+        fields.spacing = 10
+        nameField.widthAnchor.constraint(equalToConstant: 240).isActive = true
+        fields.frame.size = fields.fittingSize
+        alert.accessoryView = fields
+        alert.window.initialFirstResponder = nameField
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            completion?([])
+            return
+        }
+
+        let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name != ".", name != "..",
+              !name.contains("/"), !name.contains(":"), !name.utf8.contains(0) else {
+            showError("文件夹名称无效", "请输入一个有效的文件夹名称。")
+            completion?([])
+            return
+        }
+        let index = locations.indexOfSelectedItem
+        let directory = directories.indices.contains(index)
+            ? directories[index].1 : chooseDirectory(message: "选择新文件夹的放置位置")
+        guard let directory else {
+            completion?([])
+            return
+        }
+
+        Task {
+            do {
+                let result = try await Task.detached(priority: .utility) {
+                    try moveIntoNewFolder(urls, named: name, in: directory)
+                }.value
+                if !result.succeeded.isEmpty {
+                    NSWorkspace.shared.activateFileViewerSelecting([result.folder])
+                }
+                if !result.errors.isEmpty {
+                    showError(result.succeeded.isEmpty ? "文件移动失败" : "部分文件移动失败",
+                              result.errors.joined(separator: "\n"))
+                }
+                completion?(result.succeeded)
+            } catch {
+                showError("无法整理文件", error.localizedDescription)
+                completion?([])
+            }
+        }
+    }
+
+    nonisolated static func moveIntoNewFolder(
+        _ urls: [URL], named name: String, in directory: URL
+    ) throws -> (folder: URL, succeeded: Set<URL>, errors: [String]) {
+        let fileManager = FileManager.default
+        let selected = Set(urls.map(\.standardizedFileURL))
+        let folders = selected.filter {
+            (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
+        let destinationPath = directory.resolvingSymlinksInPath().pathComponents
+        guard !folders.contains(where: {
+            destinationPath.starts(with: $0.resolvingSymlinksInPath().pathComponents)
+        }) else {
+            throw NSError(domain: "DropPoint", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "请选择所选文件夹以外的位置。"
+            ])
+        }
+
+        let folder: URL
+        var suffix = 1
+        while true {
+            let candidate = directory.appendingPathComponent(suffix == 1 ? name : "\(name) \(suffix)", isDirectory: true)
+            do {
+                try fileManager.createDirectory(at: candidate, withIntermediateDirectories: false)
+                folder = candidate
+                break
+            } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileWriteFileExistsError {
+                suffix += 1
+            }
+        }
+
+        let topLevel = selected.filter { source in
+            !folders.contains { parent in
+                parent != source && source.pathComponents.starts(with: parent.pathComponents)
+            }
+        }
+        let outcome = transferFiles(topLevel.sorted { $0.path < $1.path }, moving: true, destination: folder)
+        if outcome.succeeded.isEmpty {
+            // rmdir only removes an empty directory, even if another process added files.
+            folder.withUnsafeFileSystemRepresentation { path in
+                if let path { _ = rmdir(path) }
+            }
+        }
+        let movedFolders = outcome.succeeded.intersection(folders)
+        let succeeded = selected.filter { source in
+            outcome.succeeded.contains(source) ||
+                movedFolders.contains { source.pathComponents.starts(with: $0.pathComponents) }
+        }
+        return (folder, succeeded, outcome.errors)
+    }
+
+    nonisolated private static func transferFiles(
+        _ urls: [URL],
+        moving: Bool,
+        destination: URL
+    ) -> TransferOutcome {
+        let fileManager = FileManager.default
+        var succeeded = Set<URL>()
+        var errors: [String] = []
+        for source in urls {
+            do {
+                let target = uniqueDestination(
+                    named: source.lastPathComponent,
+                    in: destination,
+                    fileManager: fileManager
+                )
+                if moving {
+                    try fileManager.moveItem(at: source, to: target)
+                } else {
+                    try fileManager.copyItem(at: source, to: target)
+                }
+                succeeded.insert(source.standardizedFileURL)
+            } catch {
+                errors.append("\(source.lastPathComponent)：\(error.localizedDescription)")
+            }
+        }
+        return TransferOutcome(succeeded: succeeded, errors: errors)
     }
 
     private static func resizeImages(

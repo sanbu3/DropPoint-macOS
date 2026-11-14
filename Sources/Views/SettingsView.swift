@@ -499,7 +499,7 @@ struct SettingsView: View {
             DropPointSettingsCard {
                 toggleSetting(
                     "启用直接行动",
-                    detail: "在文件架的更多菜单中显示下方操作。",
+                    detail: "控制右键和更多菜单中的文件操作。下方开关也适用于快捷操作栏。",
                     icon: "bolt.fill",
                     value: $draft.instantActionsEnabled
                 )
@@ -510,11 +510,25 @@ struct SettingsView: View {
                     ForEach(Array(ShelfAction.allCases.enumerated()), id: \.element.id) { index, action in
                         if index > 0 { Divider().padding(.leading, 54) }
                         settingRow(icon: action.systemImage, title: action.title, detail: action.detail) {
-                            Toggle("", isOn: actionBinding(action)).labelsHidden()
+                            Toggle(action.title, isOn: actionBinding(action)).labelsHidden()
                         }
                     }
                 }
                 .disabled(!draft.instantActionsEnabled)
+            }
+
+            DropPointSettingsCard {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("右键菜单项目")
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(16)
+                    ForEach(ShelfMenuOption.allCases) { option in
+                        Divider().padding(.leading, 54)
+                        settingRow(icon: option.systemImage, title: option.title, detail: "") {
+                            Toggle(option.title, isOn: menuOptionBinding(option)).labelsHidden()
+                        }
+                    }
+                }
             }
 
             DropPointSettingsCard {
@@ -710,10 +724,12 @@ struct SettingsView: View {
                 .background(Color.dropPointBlue.opacity(0.10), in: .rect(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.system(size: 13, weight: .medium))
-                Text(detail)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
             Spacer(minLength: 16)
             control()
@@ -839,6 +855,19 @@ struct SettingsView: View {
         Binding(
             get: { loginItemError != nil },
             set: { if !$0 { loginItemError = nil } }
+        )
+    }
+
+    private func menuOptionBinding(_ option: ShelfMenuOption) -> Binding<Bool> {
+        Binding(
+            get: { !draft.hiddenShelfMenuOptions.contains(option) },
+            set: { visible in
+                if visible {
+                    draft.hiddenShelfMenuOptions.remove(option)
+                } else {
+                    draft.hiddenShelfMenuOptions.insert(option)
+                }
+            }
         )
     }
 

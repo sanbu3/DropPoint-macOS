@@ -872,6 +872,7 @@ final class ShelfWindowManager {
         store.focusShelfOnShow = settings.focusShelfOnShow
         store.instantActionsEnabled = settings.instantActionsEnabled
         store.showQuickActionBar = settings.showQuickActionBar
+        store.hiddenShelfMenuOptions = settings.hiddenShelfMenuOptions
         store.enabledActions = settings.enabledActions
         store.customActions = settings.customActions
     }

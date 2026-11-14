@@ -231,6 +231,7 @@ final class AppSettings {
     var instantActionsEnabled: Bool { didSet { persistPropertyChange() } }
     var pinnedShelves: [PinnedShelf] { didSet { persistCollections() } }
     var recentShelves: [RecentShelf] { didSet { persistCollections() } }
+    var hiddenShelfMenuOptions: Set<ShelfMenuOption> { didSet { persistPropertyChange() } }
     var enabledActions: [ShelfAction] { didSet { persistPropertyChange() } }
     var customActions: [CustomShelfAction] { didSet { persistPropertyChange() } }
     var screenshotDetectionEnabled: Bool { didSet { persistPropertyChange() } }
@@ -294,6 +295,8 @@ final class AppSettings {
         } else {
             recentShelves = []
         }
+        hiddenShelfMenuOptions = Set((defaults.stringArray(forKey: Keys.hiddenShelfMenuOptions) ?? [])
+            .compactMap(ShelfMenuOption.init(rawValue:)))
         if let rawActions = defaults.array(forKey: Keys.enabledActions) as? [String] {
             var restoredActions = rawActions.compactMap(ShelfAction.init(rawValue:))
             if !defaults.bool(forKey: Keys.didAddImageCompressionAction),
@@ -305,11 +308,17 @@ final class AppSettings {
                 }
                 defaults.set(restoredActions.map(\.rawValue), forKey: Keys.enabledActions)
             }
+            if !defaults.bool(forKey: Keys.didAddGroupInFolderAction),
+               !restoredActions.contains(.groupInFolder) {
+                restoredActions.append(.groupInFolder)
+                defaults.set(restoredActions.map(\.rawValue), forKey: Keys.enabledActions)
+            }
             enabledActions = restoredActions
         } else {
             enabledActions = ShelfAction.defaultActions
         }
         defaults.set(true, forKey: Keys.didAddImageCompressionAction)
+        defaults.set(true, forKey: Keys.didAddGroupInFolderAction)
         if let data = defaults.data(forKey: Keys.customActions),
            let actions = try? JSONDecoder().decode([CustomShelfAction].self, from: data) {
             customActions = actions
@@ -369,6 +378,7 @@ final class AppSettings {
         showQuickActionBar = draft.showQuickActionBar
         doubleCommandScreenshotEnabled = draft.doubleCommandScreenshotEnabled
         instantActionsEnabled = draft.instantActionsEnabled
+        hiddenShelfMenuOptions = draft.hiddenShelfMenuOptions
         enabledActions = draft.enabledActions
         customActions = draft.customActions
         screenshotDetectionEnabled = draft.screenshotDetectionEnabled
@@ -413,6 +423,7 @@ final class AppSettings {
         defaults.set(showQuickActionBar, forKey: Keys.showQuickActionBar)
         defaults.set(doubleCommandScreenshotEnabled, forKey: Keys.doubleCommandScreenshotEnabled)
         defaults.set(instantActionsEnabled, forKey: Keys.instantActionsEnabled)
+        defaults.set(hiddenShelfMenuOptions.map(\.rawValue).sorted(), forKey: Keys.hiddenShelfMenuOptions)
         defaults.set(enabledActions.map(\.rawValue), forKey: Keys.enabledActions)
         defaults.set(try? JSONEncoder().encode(customActions), forKey: Keys.customActions)
         defaults.set(screenshotDetectionEnabled, forKey: Keys.screenshotDetectionEnabled)
@@ -450,6 +461,8 @@ final class AppSettings {
         static let pinnedShelves = "pinnedShelves"
         static let recentShelves = "recentShelves"
         static let instantActionsEnabled = "instantActionsEnabled"
+        static let hiddenShelfMenuOptions = "hiddenShelfMenuOptions"
+        static let didAddGroupInFolderAction = "didAddGroupInFolderAction"
         static let enabledActions = "enabledActions"
         static let didAddImageCompressionAction = "didAddImageCompressionAction"
         static let customActions = "customActions"
@@ -486,6 +499,7 @@ struct SettingsDraft: Equatable {
     var showQuickActionBar: Bool
     var doubleCommandScreenshotEnabled: Bool
     var instantActionsEnabled: Bool
+    var hiddenShelfMenuOptions: Set<ShelfMenuOption>
     var enabledActions: [ShelfAction]
     var customActions: [CustomShelfAction]
     var screenshotDetectionEnabled: Bool
@@ -518,6 +532,7 @@ struct SettingsDraft: Equatable {
         showQuickActionBar = settings.showQuickActionBar
         doubleCommandScreenshotEnabled = settings.doubleCommandScreenshotEnabled
         instantActionsEnabled = settings.instantActionsEnabled
+        hiddenShelfMenuOptions = settings.hiddenShelfMenuOptions
         enabledActions = settings.enabledActions
         customActions = settings.customActions
         screenshotDetectionEnabled = settings.screenshotDetectionEnabled

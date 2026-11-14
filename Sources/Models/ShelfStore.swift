@@ -49,6 +49,8 @@ final class ShelfStore {
     var focusShelfOnShow = false
     var instantActionsEnabled = true
     var showQuickActionBar = true
+    private var isGroupingInFolder = false
+    var hiddenShelfMenuOptions: Set<ShelfMenuOption> = []
     var enabledActions = ShelfAction.defaultActions
     var customActions: [CustomShelfAction] = []
     var reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -371,16 +373,20 @@ final class ShelfStore {
     }
 
     func perform(_ action: ShelfAction) {
+        guard !isClosed, !isClearing, !isPullClearing else { return }
+        guard action != .groupInFolder || (!isGroupingInFolder && !selectedItems.isEmpty) else { return }
+        if action == .groupInFolder { isGroupingInFolder = true }
         AppDiagnostics.record("shelf-action", category: "Action", fields: ["shelf": diagnosticID, "action": action.rawValue, "selection": String(selectedItems.count)])
         let selected = selectedItems
         let idsByURL = Dictionary(uniqueKeysWithValues: selected.map { ($0.url.standardizedFileURL, $0.id) })
         ShelfActionService.perform(action, urls: selected.map(\.url)) { [weak self] succeeded in
+            if action == .groupInFolder { self?.isGroupingInFolder = false }
             AppDiagnostics.record("shelf-action-completed", category: "Action", fields: ["shelf": self?.diagnosticID ?? "released", "succeeded": String(succeeded.count)])
             if action == .compressImages || action == .resizeImages {
                 self?.add(urls: Array(succeeded))
                 return
             }
-            guard action == .moveTo || action == .trash else { return }
+            guard action == .moveTo || action == .groupInFolder || action == .trash else { return }
             self?.remove(items: Set(succeeded.compactMap { idsByURL[$0.standardizedFileURL] }))
         }
     }

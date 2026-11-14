@@ -202,7 +202,7 @@ private struct ExpandedShelfHeader: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .dropPointHelp("文件架设置与操作")
-            .nativeShelfMenu("文件架设置与操作") { ShelfContextMenuFactory.make(for: store) }
+            .nativeShelfMenu("文件架设置与操作") { ShelfContextMenuFactory.make(for: store, isContextMenu: false) }
         }
         .frame(height: 52)
         .padding(.leading, 16)

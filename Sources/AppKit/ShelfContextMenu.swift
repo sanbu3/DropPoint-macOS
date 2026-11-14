@@ -2,12 +2,16 @@ import AppKit
 
 @MainActor
 enum ShelfContextMenuFactory {
-    static func make(for store: ShelfStore) -> NSMenu {
+    static func make(for store: ShelfStore, isContextMenu: Bool = true) -> NSMenu {
         let handler = ShelfContextMenuHandler(store: store)
         let menu = RetainedShelfMenu(handler: handler)
 
         configure(menu)
         let hasSelection = !store.selectedItems.isEmpty && !store.isClosed && !store.isClearing && !store.isPullClearing
+
+        func shows(_ option: ShelfMenuOption) -> Bool {
+            !isContextMenu || !store.hiddenShelfMenuOptions.contains(option)
+        }
 
         func actionItem(_ action: ShelfAction) -> NSMenuItem {
             let item = item(title: action.title, symbol: action.systemImage,
@@ -25,24 +29,26 @@ enum ShelfContextMenuFactory {
         if store.instantActionsEnabled {
             let enabled = store.enabledActions
             var viewing = enabled.filter { [.open, .reveal].contains($0) }.map(actionItem)
-            let preview = item(title: "快速查看", symbol: "eye",
-                               selector: #selector(ShelfContextMenuHandler.previewFiles), handler: handler)
-            preview.isEnabled = hasSelection
-            viewing.append(preview)
-            if hasSelection, store.selectedItems.count == 1 {
+            if shows(.preview) {
+                let preview = item(title: ShelfMenuOption.preview.title, symbol: ShelfMenuOption.preview.systemImage,
+                                   selector: #selector(ShelfContextMenuHandler.previewFiles), handler: handler)
+                preview.isEnabled = hasSelection
+                viewing.append(preview)
+            }
+            if shows(.renameItem), hasSelection, store.selectedItems.count == 1 {
                 let rename = item(title: "重命名项目…", symbol: "pencil",
                                   selector: #selector(ShelfContextMenuHandler.renameSelectedItem), handler: handler)
                 viewing.append(rename)
             }
-            if hasSelection, let openWith = openWithMenu(for: store, handler: handler) {
+            if shows(.openWith), hasSelection, let openWith = openWithMenu(for: store, handler: handler) {
                 viewing.append(openWith)
             }
             appendGroup(viewing)
             appendGroup(enabled.filter { [.airDrop, .messages, .mail].contains($0) }.map(actionItem))
-            appendGroup(enabled.filter { [.copyPaths, .copyTo, .moveTo].contains($0) }.map(actionItem))
+            appendGroup(enabled.filter { [.copyPaths, .copyTo, .moveTo, .groupInFolder].contains($0) }.map(actionItem))
             appendGroup(enabled.filter { [.compressImages, .resizeImages, .createPDF, .archive].contains($0) }.map(actionItem))
 
-            if !store.customActions.isEmpty {
+            if shows(.customActions), !store.customActions.isEmpty {
                 let parent = NSMenuItem(title: "自定义操作", action: nil, keyEquivalent: "")
                 setImage(symbol("bolt"), on: parent)
                 let submenu = NSMenu(title: "自定义操作")
@@ -84,7 +90,11 @@ enum ShelfContextMenuFactory {
         configure(colorMenu)
         colorItems.forEach(colorMenu.addItem)
         colors.submenu = colorMenu
-        appendGroup([renameShelf, colors, pin])
+        appendGroup([
+            shows(.renameShelf) ? renameShelf : nil,
+            shows(.colors) ? colors : nil,
+            shows(.pin) ? pin : nil
+        ].compactMap { $0 })
 
         let clear = item(title: "清空文件架", symbol: "clear",
                          selector: #selector(ShelfContextMenuHandler.clearShelf), handler: handler)
@@ -97,17 +107,18 @@ enum ShelfContextMenuFactory {
             let remove = item(title: "从文件架移除", symbol: "minus.circle",
                               selector: #selector(ShelfContextMenuHandler.removeSelection), handler: handler)
             remove.isEnabled = hasSelection
-            shelfItems.append(remove)
+            if shows(.remove) { shelfItems.append(remove) }
             let up = item(title: "上移", symbol: "arrow.up",
                           selector: #selector(ShelfContextMenuHandler.moveSelectionUp), handler: handler)
             up.isEnabled = hasSelection
-            shelfItems.append(up)
+            if shows(.moveUp) { shelfItems.append(up) }
             let down = item(title: "下移", symbol: "arrow.down",
                             selector: #selector(ShelfContextMenuHandler.moveSelectionDown), handler: handler)
             down.isEnabled = hasSelection
-            shelfItems.append(down)
+            if shows(.moveDown) { shelfItems.append(down) }
         }
-        shelfItems.append(contentsOf: [clear, hide])
+        if shows(.clear) { shelfItems.append(clear) }
+        if shows(.hide) { shelfItems.append(hide) }
         appendGroup(shelfItems)
         return menu
     }
@@ -206,7 +217,12 @@ private final class ShelfContextMenuHandler: NSObject {
     @objc func performAction(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let action = ShelfAction(rawValue: rawValue) else { return }
-        store.perform(action)
+        if action == .groupInFolder {
+            // Let AppKit finish tracking the context menu before another menu opens.
+            DispatchQueue.main.async { [store] in store.perform(action) }
+        } else {
+            store.perform(action)
+        }
     }
 
     @objc func performCustomAction(_ sender: NSMenuItem) {

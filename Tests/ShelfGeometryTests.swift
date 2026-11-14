@@ -568,6 +568,7 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings(defaults: defaults)
         var draft = SettingsDraft(settings)
         draft.enabledActions = [.copyPaths, .archive, .trash]
+        draft.hiddenShelfMenuOptions = [.preview, .colors]
         draft.customActions = [
             CustomShelfAction(
                 name: "复制到测试目录",
@@ -583,6 +584,7 @@ final class AppSettingsTests: XCTestCase {
 
         let restored = AppSettings(defaults: defaults)
         XCTAssertEqual(restored.enabledActions, draft.enabledActions)
+        XCTAssertEqual(restored.hiddenShelfMenuOptions, draft.hiddenShelfMenuOptions)
         XCTAssertEqual(restored.customActions, draft.customActions)
         XCTAssertFalse(restored.shakeActivationEnabled)
         XCTAssertEqual(restored.activationModifier, .option)
@@ -590,14 +592,14 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(restored.idleSnapDelay, .thirtySeconds)
     }
 
-    func testExistingActionPreferencesGainImageCompressionOnlyOnce() throws {
+    func testExistingActionPreferencesGainNewDefaultsOnlyOnce() throws {
         let suiteName = "DropPointNativeTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set([ShelfAction.copyPaths.rawValue], forKey: "enabledActions")
 
         let migrated = AppSettings(defaults: defaults)
-        XCTAssertEqual(migrated.enabledActions, [.copyPaths, .compressImages])
+        XCTAssertEqual(migrated.enabledActions, [.copyPaths, .compressImages, .groupInFolder])
 
         migrated.enabledActions = [.copyPaths]
         let restored = AppSettings(defaults: defaults)
@@ -1292,6 +1294,47 @@ final class OptionHoldClearGestureTests: XCTestCase {
 
 @MainActor
 final class InteractionSafetyTests: XCTestCase {
+    func testGroupInFolderPreservesExistingFilesAndReportsPartialFailure() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? manager.removeItem(at: root) }
+
+        let existing = root.appendingPathComponent("整理")
+        try manager.createDirectory(at: existing, withIntermediateDirectories: false)
+        let first = root.appendingPathComponent("a/同名.txt")
+        let second = root.appendingPathComponent("b/同名.txt")
+        for (url, content) in [(first, "first"), (second, "second")] {
+            try manager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: false)
+            try Data(content.utf8).write(to: url)
+        }
+        let missing = root.appendingPathComponent("missing.txt")
+        let result = try ShelfActionService.moveIntoNewFolder([first, second, missing], named: "整理", in: root)
+        XCTAssertEqual(result.folder.lastPathComponent, "整理 2")
+        XCTAssertEqual(result.succeeded, [first.standardizedFileURL, second.standardizedFileURL])
+        XCTAssertEqual(result.errors.count, 1)
+        XCTAssertEqual(try manager.contentsOfDirectory(atPath: existing.path), [])
+        XCTAssertEqual(try String(contentsOf: result.folder.appendingPathComponent("同名.txt"), encoding: .utf8), "first")
+        XCTAssertEqual(try String(contentsOf: result.folder.appendingPathComponent("同名 2.txt"), encoding: .utf8), "second")
+        XCTAssertFalse(manager.fileExists(atPath: first.path))
+        XCTAssertFalse(manager.fileExists(atPath: second.path))
+        let empty = try ShelfActionService.moveIntoNewFolder([missing], named: "空", in: root)
+        XCTAssertFalse(manager.fileExists(atPath: empty.folder.path))
+    }
+
+    func testContextMenuRespectsVisibilityWithoutChangingMoreMenu() {
+        let store = ShelfStore()
+        store.hiddenShelfMenuOptions = [.colors, .pin, .preview, .clear]
+        store.enabledActions.removeAll { $0 == .groupInFolder }
+        let titles = ShelfContextMenuFactory.make(for: store).items.map(\.title)
+        for name in ["文件架颜色", "固定文件架", "快速查看", "清空文件架", "新建文件夹并移入…"] {
+            XCTAssertFalse(titles.contains(name))
+        }
+        let more = ShelfContextMenuFactory.make(for: store, isContextMenu: false).items.map(\.title)
+        XCTAssertTrue(more.contains("文件架颜色"))
+        XCTAssertTrue(more.contains("清空文件架"))
+    }
+
     func testContextMenuWithIconsAndLabelsDispatchesShelfAction() throws {
         let store = ShelfStore()
         store.items = [try XCTUnwrap(ShelfItem.make(url: URL(fileURLWithPath: #filePath)))]

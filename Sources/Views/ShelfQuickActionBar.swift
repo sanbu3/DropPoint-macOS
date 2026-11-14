@@ -8,7 +8,7 @@ struct ShelfQuickActionBar: View {
     let palette: ShelfPalette
 
     private let preferred: [ShelfAction] = [
-        .reveal, .copyPaths, .archive, .compressImages, .createPDF, .airDrop
+        .groupInFolder, .reveal, .copyPaths, .archive, .compressImages, .createPDF, .airDrop
     ]
 
     private var visibleActions: [ShelfAction] {
@@ -71,7 +71,7 @@ struct ShelfQuickActionBar: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .dropPointHelp("更多操作")
-                .nativeShelfMenu("更多操作") { ShelfContextMenuFactory.make(for: store) }
+                .nativeShelfMenu("更多操作") { ShelfContextMenuFactory.make(for: store, isContextMenu: false) }
             }
 
         }
@@ -118,6 +118,7 @@ struct ShelfQuickActionBar: View {
         case .archive: "ZIP"
         case .copyTo: "复制到"
         case .moveTo: "移动到"
+        case .groupInFolder: "建文件夹"
         case .trash: "废纸篓"
         }
     }

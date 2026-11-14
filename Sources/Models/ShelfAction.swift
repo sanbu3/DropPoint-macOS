@@ -13,6 +13,7 @@ enum ShelfAction: String, SettingOption {
     case archive
     case copyTo
     case moveTo
+    case groupInFolder
     case trash
 
     static let defaultActions: [ShelfAction] = [
@@ -22,6 +23,7 @@ enum ShelfAction: String, SettingOption {
         .open,
         .reveal,
         .copyPaths,
+        .groupInFolder,
         .compressImages,
         .createPDF,
         .archive,
@@ -43,6 +45,7 @@ enum ShelfAction: String, SettingOption {
         case .archive: "压缩为 ZIP"
         case .copyTo: "将文件复制到…"
         case .moveTo: "将文件移动到…"
+        case .groupInFolder: "新建文件夹并移入…"
         case .trash: "移到废纸篓"
         }
     }
@@ -61,6 +64,7 @@ enum ShelfAction: String, SettingOption {
         case .archive: "archivebox"
         case .copyTo: "doc.on.doc.fill"
         case .moveTo: "folder.badge.plus"
+        case .groupInFolder: "folder.badge.plus"
         case .trash: "trash"
         }
     }
@@ -77,11 +81,52 @@ enum ShelfAction: String, SettingOption {
         case .archive: "把所选内容压缩成 ZIP 文件"
         case .copyTo: "保留原文件并复制到选定目录"
         case .moveTo: "将原文件移动到选定目录"
+        case .groupInFolder: "为所选文件新建文件夹，并移动到指定位置"
         case .trash: "使用 macOS 废纸篓，可从 Finder 恢复"
         }
     }
 
     var isDestructive: Bool { self == .trash }
+}
+
+enum ShelfMenuOption: String, CaseIterable, Identifiable {
+    case preview, renameItem, openWith, customActions
+    case renameShelf, colors, pin, remove, moveUp, moveDown, clear, hide
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .preview: "快速查看"
+        case .renameItem: "重命名项目…"
+        case .openWith: "打开方式"
+        case .customActions: "自定义操作"
+        case .renameShelf: "重命名文件架…"
+        case .colors: "文件架颜色"
+        case .pin: "固定／取消固定文件架"
+        case .remove: "从文件架移除"
+        case .moveUp: "上移"
+        case .moveDown: "下移"
+        case .clear: "清空文件架"
+        case .hide: "隐藏文件架"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .preview: "eye"
+        case .renameItem, .renameShelf: "pencil"
+        case .openWith: "arrow.up.forward.app"
+        case .customActions: "bolt"
+        case .colors: "paintpalette"
+        case .pin: "pin"
+        case .remove: "minus.circle"
+        case .moveUp: "arrow.up"
+        case .moveDown: "arrow.down"
+        case .clear: "clear"
+        case .hide: "rectangle.compress.vertical"
+        }
+    }
 }
 
 enum CustomShelfActionKind: String, Codable, CaseIterable {
