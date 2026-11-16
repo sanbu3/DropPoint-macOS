@@ -1,263 +1,119 @@
 <div align="center">
-  <img src="Resources/Assets.xcassets/AppIcon.appiconset/appicon_128.png" width="96" height="96" alt="DropPoint app icon">
+  <img src="Resources/Assets.xcassets/AppIcon.appiconset/appicon_128.png" width="88" height="88" alt="DropPoint 图标">
   <h1>DropPoint for macOS</h1>
-  <p>用 SwiftUI 与 AppKit 构建的原生 macOS 浮动文件架。</p>
-  <p>
-    <a href="#安装">安装</a>
-    ·
-    <a href="#浮动文件架">浮动文件架</a>
-    ·
-    <a href="#功能">功能</a>
-    ·
-    <a href="#从源码构建">构建</a>
-    ·
-    <a href="#作者与致谢">致谢</a>
-  </p>
+  <p><strong>先把文件放这儿，等你腾出手再拖走。</strong></p>
+  <p>一个免费开源的 macOS 浮动文件架。拖动时晃一晃，手边就多了个放文件的地方。</p>
+  <p><code>macOS 14+</code> &nbsp; <code>Apple silicon / Intel</code> &nbsp; <code>SwiftUI + AppKit</code> &nbsp; <code>GPL-3.0</code></p>
+  <p><a href="#安装">下载安装</a> · <a href="#文件架的四个状态">界面与动图</a> · <a href="#常用操作">快捷键</a> · <a href="#开发缘起与致谢">开发缘起</a></p>
+  <img src="docs/media/droppoint-2-shelf-dark.jpg" width="432" alt="DropPoint 深色展开文件架：文件网格、批量选择与快捷操作栏">
 </div>
 
-> [!IMPORTANT]
-> 本仓库只包含原生 macOS 实现，不包含 Electron、Node.js、网页前端或跨平台运行时。
+## 三步就够
 
-DropPoint 2.0 没有工作台，也没有额外的文件管理主窗口。应用只围绕一件事：**在需要的时候出现一个浮动文件架**。
+1. **叫出文件架。** 拖着文件时晃一下鼠标，或在拖放途中按住设置好的修饰键。也可以用全局快捷键，默认是 `⇧Tab`。
+2. **把手里的东西先放下。** 文件、文件夹和浏览器里的图片都可以先放进架子。换窗口、换桌面，或者再去收集几份。
+3. **继续拖，或者顺手处理。** 把内容拖到邮件、聊天或另一个 Finder 窗口；也可以展开文件架，直接预览、打包或分享。
 
-拖动文件时摇晃鼠标，或在拖动中按住修饰键，就能在光标附近生成文件架；把内容暂存其中，切换窗口、桌面或全屏空间后再拖到目的地。也可以从剪贴板、Finder、Dock 图标或菜单栏新建文件架。
+例如：从几个目录收齐作业附件，再一次性拖进邮件；从浏览器收集几张图，压到合适的大小再发送。当两个窗口没法并排时，架子就是拖放的中转站。
 
-文件架默认只保留文件引用。拖入网页图片、生成截图或主动执行复制、压缩、PDF 等操作时会创建本地文件；应用不会把文件上传到自有服务器。
+<details>
+<summary>看动图：拖动中唤出文件架</summary>
+<br>
+<img src="docs/media/drag-shake-drop.gif" width="620" alt="拖动内容时晃动指针，出现浮动文件架并放下内容">
+</details>
 
-## 浮动文件架
+## 文件架的四个状态
 
-<p align="center">
-  <img src="docs/media/droppoint-2-shelf-dark.jpg" width="640" alt="深色模式下的展开文件架">
-</p>
+| 空架 · 随时接住文件 | 紧凑 · 贴在手边 |
+| :---: | :---: |
+| <img src="docs/media/shelf-empty.png" width="230" alt="空文件架，猫待在纸箱里"> | <img src="docs/media/shelf-compact.png" width="230" alt="紧凑文件架，显示文件架名称和颜色标记"> |
+| 空着时，小猫在纸箱里等你放文件。 | 收起后只占一小块空间，可命名、标色或贴边。 |
 
-<p align="center">
-  <img src="docs/media/droppoint-2-shelf-light.jpg" width="640" alt="浅色模式下的展开文件架">
-</p>
+| 展开 · 看清每一项 | 拖出 · 一把带走 |
+| :---: | :---: |
+| <img src="docs/media/droppoint-2-shelf-light.jpg" width="290" alt="浅色模式下展开文件架，显示文件网格和已选文件"> | <img src="docs/media/droppoint-drag-out.jpg" width="245" alt="从文件架拖出三个项目时的纸箱与数量提示"> |
+| 进入文件网格后可以多选，用空格预览。 | 拖出时显示纸箱和数量，方便确认带走了几项。 |
 
-<p align="center">
-  <img src="docs/media/droppoint-drag-out.jpg" width="320" alt="从紧凑文件架拖出时的箱子动画">
-</p>
+截图来自项目已有的界面记录；早期动图主要演示操作，控件外观可能随版本改变。
 
-> 截图只记录一帧。猫咪与空箱子播放原始 SVG 的完整形变时间线，由 ImageIO 与 Core Animation 原生播放；减少动态效果开启时使用静帧。
+<details>
+<summary>再看两个场景：剪贴板上架 · 复制与预览</summary>
+<br>
 
-- 紧凑视图显示文件堆叠、文件名或自定义文件架名，并用颜色点标识分类
-- 展开视图显示文件网格和快捷操作栏
-- 展开宽度固定 432 点，高度按行数 270 / 390 / 436 变化，不裁切快捷栏，也不会留下大块空白
-- 通过右上角 `···` 菜单重命名文件架、选择六种颜色或固定文件架
-- 双击标题可直接重命名文件架
-- 右键文件项目可重命名、上移/下移、用指定应用打开或执行系统分享
-- 空格 Quick Look、`⌘W` 关闭、`⇧⌘T` 恢复最近关闭的文件架
-- 鼠标按下文件架会激活窗口，空格、Esc、⌘W 等键盘操作始终落在当前文件架
-- 从紧凑文件架拖出文件时显示箱子动画和拖出数量，松手后回到文件架
-- 同时按下左右 Command，截取光标下最近的窗口并飞入最近的文件架
-- 截图前会检查屏幕录制权限；权限不足时显示系统设置引导
+**剪贴板上架。** 文件已在剪贴板时，可以直接创建一个架子；也可以选中当前架子，再按 `⌘V` 加进去。
 
-## 没有工作台
+<img src="docs/media/clipboard-paste.gif" width="540" alt="从剪贴板创建文件架或添加内容">
 
-- 启动后直接显示一个浮动文件架（可在设置中关闭）
-- 没有文件架中心或文件管理主窗口
-- 程序坞图标存在，但点击它只会显示/新建文件架，不会打开一个空窗口
-- 固定文件架与最近关闭保留在菜单栏子菜单中
-- 所有文件架都是独立窗口，可以同时打开多个
+**复制与预览。** 在文件架里确认内容，就可以继续复制或拖到下一处。
 
-## 功能
+<img src="docs/media/copy-drop-preview.gif" width="540" alt="文件架中的复制、拖放和预览操作">
+</details>
 
-### 文件架交互
+## 值得用在哪儿
 
-- 原生 SwiftUI / AppKit 浮动窗口、菜单栏和系统拖放体验
-- 文件、文件夹、Finder 项目及网页图片暂存
-- 单文件紧凑视图，以及多文件选择和展开视图
-- 空格调用 macOS Quick Look 预览
-- 复制、移除、清空、系统分享和在 Finder 中显示
-- 拖动文件时摇晃鼠标或按住修饰键快速创建文件架
-- 全局快捷键和剪贴板快速创建
-- 拖入区域触觉反馈；离开后再次进入会再次反馈
-- 放置后自动贴边开关、0–30 秒延迟和左右角落选择
-- 双指轻点立即贴边，双指下滑越过阈值后清空文件架
-- 监听指定本地文件夹，并独立识别桌面新截图
-- 排除应用内部拖出、文件恢复等事件，避免重复创建文件架
-- `⌘W` 关闭当前文件架，`⇧⌘T` 恢复最近关闭的内容
-- 深色模式、减少动态效果和原生偏好持久化
+| 你正在做的事 | DropPoint 怎么帮你 |
+| --- | --- |
+| 在多个窗口之间搬文件 | 浮动架子随用随开；支持多个架子、彩色标记、自动贴边，也可以手动隐藏。 |
+| 附件很多，想先看一眼 | 展开网格后可多选、用 Quick Look 预览、重命名、排序，或回到 Finder 定位。 |
+| 发之前要顺手整理 | 可以压成 ZIP、压缩图片体积、按最长边调整尺寸、把图片合成 PDF，或新建文件夹并移入。也可以用 AirDrop、信息或邮件分享。 |
+| 刚拖进来就想处理 | 拖动经过文件架下方的触发点，会展开对应的操作落点。图片可选择压图或调整尺寸，普通文件也能直接进 ZIP 或 AirDrop。 |
+| 有几组素材经常用 | 给文件架命名、标色并固定，重启后还能打开；误关时可恢复最近关闭的架子。 |
+| 想把截图放到手边 | 同时按下左右 `⌘`，截取光标附近的窗口，截图会飞入最近使用的文件架。也能启用桌面截图或指定目录监听。 |
 
-### 2.0 新增
+**没有额外的文件管理主窗口。** 打开后直接用架子，设置和固定项目从菜单栏进入。应用用 SwiftUI 和 AppKit 构建，支持系统浅色、深色和「减少动态效果」，运行不需要 Electron 或 Node.js。
 
-- **纯文件架应用**：移除了工作台/文件架中心，不再有额外主窗口
-- **固定文件架**：为文件架命名、选择颜色并固定；内容持久化到本机，重启后仍可打开
-- **最近关闭**：保留最近 12 个关闭的文件架，可从菜单栏恢复
-- **颜色标记**：蓝色、紫色、粉色、橙色、绿色、石墨六种文件架颜色
-- **快捷操作栏**：展开文件架中显示常用操作，减少右键查找
-- **重命名与排序**：直接重命名文件架与文件，按块上移/下移文件顺序
-- **打开方式**：从文件架直接选择其他应用打开所选文件
-- **多文件打开合并**：一次从 Finder 打开多个文件只创建一个文件架
-- **从 Finder / Dock 打开**：把文件交给 DropPoint 即创建文件架
-- **双 Command 截图**：同时按下左右 Command，截取最近的窗口并执行飞入文件架的动画
-- **屏幕录制权限引导**：截图前检查权限，提供系统设置入口
-
-## 系统要求
-
-- macOS 14 Sonoma 或更高版本
-- Apple silicon 或 Intel 64 位 Mac
-- Release 构建为 `arm64 + x86_64` Universal App
+**文件默认留在原位置。** 文件架通常只保留本地文件引用，清空架子不会删除原件。主动选择移动、废纸篓或另存等操作时，才会对文件执行对应处理。导入网页图片和截图时会保存到本机；应用无需账户，也不会把文件上传到自有服务器。系统分享会按你选择的目标发送内容。
 
 ## 安装
 
-要安装当前版本 **2.0.20**，请检出 [v2.0.20](https://github.com/sanbu3/DropPoint-macOS/tree/v2.0.20)，按[从源码构建](#从源码构建)生成应用。
+需要 **macOS 14 或更高版本**。标准 Release 是同时支持 `arm64` 和 `x86_64` 的通用构建。
 
-1. 如需历史版本，前往 [Releases](https://github.com/sanbu3/DropPoint-macOS/releases) 下载对应的 DMG。
-2. 打开 DMG，把 `DropPoint.app` 拖入“应用程序”文件夹。
-3. 首次启动时，如 macOS 提示来源未验证，请在 Finder 中右键应用并选择“打开”。
+1. 从 [v2.0.20 发布页](https://github.com/sanbu3/DropPoint-macOS/releases/tag/v2.0.20) 下载 [通用版 ZIP](https://github.com/sanbu3/DropPoint-macOS/releases/download/v2.0.20/DropPoint-2.0.20-macOS-universal.zip)。
+2. 解压后，把 `DropPoint.app` 拖进「应用程序」。
+3. 当前构建使用 ad-hoc 签名，未经过 Apple 公证。若系统拦下启动，确认来源后，可到「系统设置 → 隐私与安全性」查看能否为该应用单独选择「仍要打开」。
 
-当前公开构建使用本地签名，尚未使用 Apple Developer ID 公证。请只从本仓库 Release 页面下载，并按需核对 Release 中公布的 SHA-256；不建议关闭 Gatekeeper。
+[对应源码](https://github.com/sanbu3/DropPoint-macOS/tree/v2.0.20) · [SHA-256 校验文件](https://github.com/sanbu3/DropPoint-macOS/releases/download/v2.0.20/DropPoint-2.0.20-macOS-universal.zip.sha256) · [全部版本](https://github.com/sanbu3/DropPoint-macOS/releases)
 
-## 使用方法
+晃动或按修饰键唤出文件架需要**输入监控**。只有在使用窗口截图时才需要**屏幕录制**。安装后也可以先用菜单栏新建文件架并手动拖入文件，再按需开启权限。
 
-1. 启动 DropPoint；如果启用了“启动时新建文件架”，会直接出现一个浮动文件架。
-2. 拖动文件时摇晃鼠标，或在拖动中按住修饰键，在光标附近创建文件架。
-3. 把文件拖进文件架暂存，切换到目标窗口、桌面或空间后再拖出。
-4. 在展开文件架中批量分享、压缩、创建 PDF，或把常用内容固定下来。
+<details>
+<summary>查看权限引导截图</summary>
+<br>
+<img src="docs/media/droppoint-permission-guide.png" width="468" alt="将 DropPoint 图标拖入系统设置的输入监控列表">
+</details>
 
-常用操作：
+## 常用操作
 
-| 操作 | 结果 |
+| 快捷键 | 操作 |
 | --- | --- |
-| `⌘N` | 新建浮动文件架 |
-| `⇧⌘S` | 显示/隐藏所有浮动文件架 |
-| `⇧Tab` | 默认新建文件架；可在设置切换为显示/隐藏 |
-| `⌥⇧A` | 从剪贴板创建文件架 |
-| 左右 `⌘` 同时按下 | 截取最近的窗口并飞入文件架 |
-| `⇧⌘T` | 恢复最近关闭的文件架 |
-| `⌘V` | 把剪贴板中的文件放入当前文件架 |
-| `Space` | 预览单文件或展开状态下选中的项目 |
-| `⌘R` | 重命名文件架 |
-| `⇧⌘P` | 固定 / 取消固定文件架 |
-| `⌘⌫` | 清空文件架 |
-| `⌘W` | 关闭当前文件架 |
-| 双指轻点 | 立即移动到设置的贴边角落 |
-| 双指下滑 | 越过触觉阈值后清空当前文件架 |
-| 激活文件架后双击 `⌥`，第二次持续按住 | 横条变长、变粗并填充进度，满 1.2 秒清空内容并保留空架 |
+| `⇧Tab` | 默认全局新建文件架；组合键和动作可在设置中修改 |
+| `⌘N` / `⇧⌘S` | 在应用内新建 / 显示或隐藏所有文件架 |
+| `⌥⇧A` / `⌘V` | 从剪贴板新建 / 粘贴到当前文件架 |
+| `Space` | 预览当前文件或所选项目 |
+| `⌘R` / `⇧⌘P` | 重命名 / 固定或取消固定 |
+| `⌘W` / `⇧⌘T` | 关闭当前文件架 / 恢复最近关闭 |
+| 左右 `⌘` 同时按下 | 截取窗口并收进文件架 |
 
-清空文件架仅移除架内引用，保留原始文件。在「设置 › 文件架行为」开启「不自动关闭空文件架」可保留所有空架。关闭开关后恢复原先设定的等待时间。Option 长按清空会单独保留该空架，直到再次放入文件。
+开启对应手势后，双指轻点可贴边，双指下滑可清空。文件架激活时，连按两次 `⌥` 并在第二次按住至进度满，也能清空并保留空架。
 
-## 双 Command 截图
+## 开发缘起与致谢
 
-把鼠标放在目标窗口附近，同时按下左右 Command：
+我最早是因为看到 [Dropover](https://dropoverapp.com/) 的完整功能需要付费，想给自己做一个免费、开源的文件架：平时收几张图、传几份文件，拖动到一半有地方先放下就够用。做着做着，又加上了我自己常用的截图、压图和批量整理。
 
-1. DropPoint 找到光标下最近的窗口或前台窗口
-2. 截取窗口内容并保存到本机
-3. 添加到你最近使用的文件架；没有文件架时自动在光标附近新建
-4. 缩略图从原窗口位置飞入文件架
-
-截图需要 macOS 的“屏幕录制”权限。授权后如果系统要求，重新启动 DropPoint 即可。
-
-## 程序坞与菜单栏
-
-DropPoint 2.0 默认：
-
-- 在程序坞中显示图标
-- 启动时新建一个浮动文件架
-- 同时保留菜单栏图标，用于新建文件架、打开固定/最近内容和进入设置
-
-可以在 **设置 › 通用** 中关闭启动文件架、关闭程序坞图标或隐藏菜单栏图标。关闭程序坞图标后，应用会退回菜单栏工具模式。点击程序坞图标会显示/新建文件架，而不是打开主窗口。
-
-## 自动收集与截图识别
-
-DropPoint 可以监听用户指定的本地目录，也可以单独识别桌面上的新截图：
-
-- 普通目录监听按设置的文件类别收集新增内容。
-- 截图监听仅处理图片，并结合系统截图元数据和常见截图文件名识别。
-- 从废纸篓恢复、移走后恢复或重新出现的旧截图不会作为新截图收集。
-- 应用内部把文件拖到桌面时，会暂时忽略对应目录变化，避免再次生成文件架。
-
-## 权限与隐私
-
-- “输入监控”用于识别全局文件拖动、修饰键和摇晃手势。
-- 文件夹及桌面截图监听只观察用户启用的本地目录。
-- 文件内容、缩略图、Quick Look 预览和目录变化均在本机处理。
-- 在设置中点击“权限引导”或“启用”后，系统设置旁会出现小型浮窗；把应用图标拖入输入监控列表，再按系统提示打开开关。浮窗会跟随系统设置移动，支持关闭和授权状态刷新。
-- 截图需要“屏幕录制”权限；设置页会显示状态，首次截图时会提示授权。
-- DropPoint 不需要账户，也不会把文件上传到自有服务器。
-- 固定文件架与最近关闭只保存本地文件路径，不复制文件内容。
-- AirDrop、信息、邮件等操作由 macOS 系统分享服务处理。
-
-<p align="center">
-  <img src="docs/media/droppoint-permission-guide.png" width="468" alt="输入监控权限引导悬浮窗">
-</p>
+早期设计参考了 Sudev Suresh Sreedevi（[@GameGodS3](https://github.com/GameGodS3)）创建的 [DropPoint](https://github.com/GameGodS3/DropPoint)，那是一个基于 **Electron** 的跨平台开源项目，也受到 Dropover 启发。这个仓库由 **王汪旺**（[@sanbu3](https://github.com/sanbu3)）维护，是用 SwiftUI 与 AppKit 编写的独立原生 macOS 实现。感谢原项目作者和贡献者。
 
 ## 从源码构建
 
-需要 Xcode 以及 [XcodeGen](https://github.com/yonaskolb/XcodeGen)。普通构建与应用运行不需要 Node.js、npm 或 Electron；只有重新生成动画素材时才需要开发用 Playwright 和 Pillow。
+仓库已包含 Xcode 工程。用 Xcode 打开 `DropPointNative.xcodeproj` 即可构建；修改 `project.yml` 后，用 [XcodeGen](https://github.com/yonaskolb/XcodeGen) 重新生成工程。
 
-```bash
+```sh
 git clone https://github.com/sanbu3/DropPoint-macOS.git
 cd DropPoint-macOS
-xcodegen generate
-xcodebuild \
-  -project DropPointNative.xcodeproj \
-  -scheme DropPointNative \
-  -configuration Release \
-  -derivedDataPath .build/Release \
-  ARCHS="arm64 x86_64" \
-  ONLY_ACTIVE_ARCH=NO \
-  build
+xcodebuild -project DropPointNative.xcodeproj -scheme DropPointNative \
+  -configuration Release -derivedDataPath .build/Release \
+  ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO build
 ```
 
-构建产物位于：
+应用生成在 `.build/Release/Build/Products/Release/DropPoint.app`。版本变化见 [CHANGELOG](CHANGELOG.md)，测试、签名和打包见[发布检查](docs/release-checklist.md)。欢迎在 [Issues](https://github.com/sanbu3/DropPoint-macOS/issues) 报告问题，附上 macOS 版本、DropPoint 版本和复现步骤会更有帮助。
 
-```text
-.build/Release/Build/Products/Release/DropPoint.app
-```
-
-运行测试：
-
-```bash
-xcodebuild \
-  -project DropPointNative.xcodeproj \
-  -scheme DropPointNative \
-  -configuration Debug \
-  -derivedDataPath .build/Debug \
-  test
-```
-
-## 版本与验证
-
-当前源码版本为 **2.0.20 / build 31**。更新内容见 [CHANGELOG](CHANGELOG.md)，构建、签名、安装与版本回退规则见[发布检查](docs/release-checklist.md)。
-
-2.0.6 在 macOS 27.3 实机验证了从 Codex 输入框拖入图片、创建和关闭文件架。2.0.12 共运行 123 项自动化测试，122 项通过，1 项因屏幕录制未授权跳过。arm64 和 x86_64 的 Universal Release 构建通过。
-
-## 项目结构
-
-```text
-Sources/
-├── App/          # 应用生命周期、菜单命令与服务装配
-├── AppKit/       # 浮动文件架、拖放、手势与菜单桥接
-├── Models/       # 文件架状态、设置、固定/最近内容、命令与颜色
-├── Services/     # 快捷键、目录监听、导入、窗口管理与固定内容
-├── Utilities/    # 几何、贴边、调色板与视觉辅助
-└── Views/        # 文件架与设置界面
-Resources/        # 图标、SVG、Info.plist 与文档类型声明
-docs/media/       # README 截图、GIF 与视觉验证图
-Tests/            # 纯逻辑与交互单元测试
-```
-
-## 作者与致谢
-
-本原生 macOS 版本由 **王汪旺**（[@sanbu3](https://github.com/sanbu3)）维护，源码位于 [sanbu3/DropPoint-macOS](https://github.com/sanbu3/DropPoint-macOS)。
-
-核心产品灵感来自 Sudev Suresh Sreedevi（[@GameGodS3](https://github.com/GameGodS3)）创建的 [DropPoint](https://github.com/GameGodS3/DropPoint)，谨此致谢。本仓库为使用 SwiftUI 与 AppKit 完成的独立原生实现。
-
-2.0 的固定文件架、最近关闭、颜色标记与快捷操作栏参考了 [Dropover](https://dropoverapp.com/) 的产品思路，但代码、界面与实现均为本仓库独立完成。
-
-## 开源许可
-
-本项目按 [GNU General Public License v3.0](LICENSE) 发布。你可以在许可证允许的范围内使用、研究、修改和重分发源码；分发修改版或二进制时，须同时履行 GPLv3 对对应源码、许可证文本、版权及修改说明的要求。
-
-本软件按“原样”提供，不附带任何明示或暗示担保。完整条款以 `LICENSE` 为准。
-
-## 贡献
-
-欢迎提交 Issue 或 Pull Request。提交前请确保：
-
-- 修改仅面向原生 macOS 工程，不引入 Electron 或 Node.js 运行时；
-- Release 配置能够成功编译；
-- 涉及交互时同时考虑键盘、辅助功能和“减少动态效果”；
-- 保留 `LICENSE` 及必要的来源说明。
+本项目采用 [GNU GPL v3.0](LICENSE)。
