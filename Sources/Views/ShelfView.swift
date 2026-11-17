@@ -33,7 +33,14 @@ struct ShelfView: View {
     var body: some View {
         ZStack {
             shelfBackground
-            if store.isExpanded {
+            if let id = store.trashAnimationID, !store.isDropTargeted, !reduceMotion {
+                AnimatedSVGView(name: "Trash Bin", pauseAfterCycle: true)
+                    .frame(width: 96, height: 96)
+                    .id(id)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .transition(.identity)
+            } else if store.isExpanded {
                 ExpandedShelfView(store: store, palette: palette)
             } else if showsZIPPreview {
                 zipPreview

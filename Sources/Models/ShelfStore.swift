@@ -11,6 +11,7 @@ final class ShelfStore {
     var selectedIDs: Set<String> = []
     var isExpanded = false
     private(set) var isDropTargeted = false
+    private(set) var trashAnimationID: UUID?
     var targetedDragAction: ShelfAction?
     private(set) var dragActions: [ShelfAction] = []
     private(set) var dragActionsExpanded = false
@@ -387,7 +388,21 @@ final class ShelfStore {
                 return
             }
             guard action == .moveTo || action == .groupInFolder || action == .trash else { return }
+            if action == .trash, !succeeded.isEmpty { self?.showTrashAnimation() }
             self?.remove(items: Set(succeeded.compactMap { idsByURL[$0.standardizedFileURL] }))
+        }
+    }
+
+    private func showTrashAnimation() {
+        guard !isClosed, !reduceMotion,
+              let artwork = ShelfArtworkPlayer.artwork(named: "Trash Bin") else { return }
+        let id = UUID()
+        trashAnimationID = id
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(artwork.duration))
+            guard let self, trashAnimationID == id else { return }
+            trashAnimationID = nil
+            if items.isEmpty, !isClosed { onEmptied?() }
         }
     }
 

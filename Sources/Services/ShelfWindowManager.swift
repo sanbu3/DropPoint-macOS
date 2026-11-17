@@ -254,6 +254,7 @@ final class ShelfWindowManager {
             && !controller.store.isDropTargeted
             && !controller.store.showsDragActions
             && controller.store.items.isEmpty
+            && controller.store.trashAnimationID == nil
             && !controller.store.keepsEmptyShelfAfterOptionClear
     }
 

@@ -43,6 +43,7 @@
 		8D33A0855465213F480B8A1D /* NativeHoverRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD731C88FCBBE52F4E3345F /* NativeHoverRegion.swift */; };
 		8F247D23E290B09CC34B5E8B /* ShelfArtworkPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98547C2AB6AC4BC7EBA22C93 /* ShelfArtworkPlayer.swift */; };
 		90955B990316499CEC07E247 /* DropPointApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFAB47FB3B5F5B211B5F1AD /* DropPointApp.swift */; };
+		916A4426B668B71451436DA0 /* Trash Bin Timeline.png in Resources */ = {isa = PBXBuildFile; fileRef = 35C7BA2401E71010771F41D2 /* Trash Bin Timeline.png */; };
 		9257E0A31EAA7E8929CA2C36 /* FileDropImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 681CA1D8258C085BF9A01AFF /* FileDropImporter.swift */; };
 		9690487E5A258458175C7CB0 /* PermissionGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD764C3F09D849C7474D1682 /* PermissionGuideView.swift */; };
 		99D677AB18F5FCE1257579BC /* HoverTeardownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71DCD26D7CAF6D6713946D4B /* HoverTeardownTests.swift */; };
@@ -113,6 +114,7 @@
 		2DC8A0C719893348161D6789 /* DirectoryWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryWatcher.swift; sourceTree = "<group>"; };
 		2F949B02E4E1D63A2948104A /* ShelfShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfShortcut.swift; sourceTree = "<group>"; };
 		3142AE10D444641B7D35FDDA /* ShelfTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfTint.swift; sourceTree = "<group>"; };
+		35C7BA2401E71010771F41D2 /* Trash Bin Timeline.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Trash Bin Timeline.png"; sourceTree = "<group>"; };
 		35F0CFE68F23B9F6D277B5AA /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
 		40A069A64661548FFA890B29 /* ShelfDropCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfDropCoordinator.swift; sourceTree = "<group>"; };
 		51E19AE7AAB0330B4F68C5EA /* ExternalFileDragMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalFileDragMonitor.swift; sourceTree = "<group>"; };
@@ -242,6 +244,7 @@
 				C2FEBA3176F83A868761DCFC /* DropPointLogo.svg */,
 				A6B0A56BCF34E9878EEBB5C8 /* Empty Box Timeline.png */,
 				C368EF9A81E41BA63A5F4FDD /* Empty Box.svg */,
+				35C7BA2401E71010771F41D2 /* Trash Bin Timeline.png */,
 				191BAF57285192FCB63ECC3C /* ZIP File Icon Timeline.png */,
 			);
 			path = Resources;
@@ -426,6 +429,7 @@
 				06DA6A4EF0CADFBDE8BFAA32 /* DropPointLogo.svg in Resources */,
 				E92E846334EE4281F73AFB37 /* Empty Box Timeline.png in Resources */,
 				4CF8D702D9DF36C68B399EF4 /* Empty Box.svg in Resources */,
+				916A4426B668B71451436DA0 /* Trash Bin Timeline.png in Resources */,
 				868E4DB9BDA64B2B7EC3D004 /* ZIP File Icon Timeline.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -670,7 +674,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -678,7 +682,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.20;
+				MARKETING_VERSION = 2.0.21;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
@@ -707,7 +711,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -715,7 +719,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.20;
+				MARKETING_VERSION = 2.0.21;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sanbu3.droppoint.macos;
 				PRODUCT_NAME = DropPoint;
 				SDKROOT = macosx;
